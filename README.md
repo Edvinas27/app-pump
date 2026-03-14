@@ -1,24 +1,10 @@
 # README
 
-This README would normally document whatever steps are necessary to get the
-application up and running.
+1. Use Interactors for all business logic, documentation [initializer](https://github.com/vinted/interactor-initializer)
 
-Things you may want to cover:
+### Read this
 
-* Ruby version
-
-* System dependencies
-
-* Configuration
-
-* Database creation
-
-* Database initialization
-
-* How to run the test suite
-
-* Services (job queues, cache servers, search engines, etc.)
-
-* Deployment instructions
-
-* ...
+- Run tests with '**bundle exec rspec**'
+- Run rubocop with '**rubocop -a**'
+- Start rails console with '**bundle exec rails c**'
+- Start rails server with '**bundle exec rails s**'
