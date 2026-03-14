@@ -25,3 +25,7 @@ group :test do
   gem "rspec"
   gem "rspec-rails"
 end
+
+group :development do
+  gem "rubocop-rails-omakase", require: false
+end
