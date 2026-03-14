@@ -1,0 +1,5 @@
+.idea/
+tmp/
+log/
+.DS_Store
+spec/examples.txt
