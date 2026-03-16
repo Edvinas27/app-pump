@@ -11,7 +11,7 @@ class Users::Login
     if user&.authenticate(password)
       { success: true, user: user }
     else
-      { success: false, error: "Invalid email or password" }
+      { success: false, error: "Neteisingas el. paštas arba slaptažodis" }
     end
   end
 end

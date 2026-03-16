@@ -2,7 +2,7 @@
 
 class SessionsController < BaseController
   def create
-    result = Users::Login.for(email: session_params[:email], password: session_params[:password])
+    result = Users::Login.for(session_params[:email], session_params[:password])
 
     if result[:success]
       render json: { user: user_json(result[:user]) }, status: :ok
