@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_03_15_092720) do
+ActiveRecord::Schema[8.0].define(version: 2026_03_16_190000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -23,6 +23,13 @@ ActiveRecord::Schema[8.0].define(version: 2026_03_15_092720) do
     t.datetime "updated_at", null: false
     t.index ["brand_name", "model", "fuel_type_id", "co2_emission"], name: "idx_cars_unique_combination", unique: true
     t.index ["fuel_type_id"], name: "index_cars_on_fuel_type_id"
+  end
+
+  create_table "feedbacks", force: :cascade do |t|
+    t.text "comment", null: false
+    t.integer "rating", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
   end
 
   create_table "fuel_types", force: :cascade do |t|
