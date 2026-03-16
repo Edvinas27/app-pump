@@ -1,3 +1,8 @@
 Rails.application.routes.draw do
-  get "live", "ready", "up", to: ->(_) { [200, {}, ["OK"]] }
+  %w[live ready up].each do |path|
+    get path, to: ->(_) { [200, {}, ["OK"]] }
+  end
+
+  post "cars", to: "cars#create"
+  get "cars", to: "cars#get"
 end

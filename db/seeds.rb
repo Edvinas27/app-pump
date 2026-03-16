@@ -7,3 +7,13 @@
 #   ["Action", "Comedy", "Drama", "Horror"].each do |genre_name|
 #     MovieGenre.find_or_create_by!(name: genre_name)
 #   end
+
+puts "Seeding Fuel Types"
+
+fuel_types = %w[Electric Gasoline Petrol Diesel]
+
+fuel_types.each do |fuel_name|
+  FuelType.find_or_create_by!(name: fuel_name)
+end
+
+puts "Successfully created #{FuelType.count} fuel types."
