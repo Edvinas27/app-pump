@@ -12,6 +12,8 @@ class SessionsController < BaseController
         token: JsonWebToken.encode(user_id: result[:user].id),
         country: location[:country],
         city: location[:city],
+        latitude: location[:latitude],
+        longitude: location[:longitude],
         login_ip: ip
       }, status: :ok
     else
