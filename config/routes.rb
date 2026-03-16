@@ -8,4 +8,6 @@ Rails.application.routes.draw do
 
   post "feedbacks", to: "feedbacks#create"
   get "feedbacks", to: "feedbacks#get"
+
+  post "emissions/calculate", to: "emissions#calculate"
 end
