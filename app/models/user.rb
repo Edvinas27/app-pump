@@ -7,5 +7,9 @@ class User < ApplicationRecord
   validates :email, format: { with: URI::MailTo::EMAIL_REGEXP }
   validates :username, presence: true, uniqueness: true
   validates :username, length: { in: 3..40 }
-  validates :password, length: { minimum: 6 }, if: -> { password.present? }
+  validates :password, length: { minimum: 8 }, if: -> { password.present? }
+  validates :password, format: {
+    with: /\A(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}\z/,
+    message: "turi būti 8+ simbolių, didžioji, mažoji raidė ir skaičius"
+  }, if: -> { password.present? }
 end

@@ -7,4 +7,5 @@ Rails.application.routes.draw do
   get "cars", to: "cars#get"
 
   post "users", to: "registrations#create"
+  post "sessions", to: "sessions#create"
 end
