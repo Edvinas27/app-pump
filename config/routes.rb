@@ -8,4 +8,6 @@ Rails.application.routes.draw do
 
   post "feedbacks", to: "feedbacks#create"
   get "feedbacks", to: "feedbacks#get"
+
+  get "directions", to: "directions#show"
 end
