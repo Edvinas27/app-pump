@@ -1,5 +1,6 @@
 require 'csv'
 
+#Cars::ImportFromCsv.call("db/data/officialcars.csv")
 class Cars::ImportFromCsv
   def self.call(file_path)
     CSV.foreach(file_path, headers: true) do |row|
