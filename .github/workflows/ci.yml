@@ -1,15 +1,41 @@
 name: CI
 
+# Runs on: pushes to any branch (feature branches, main, develop, …) and on PRs targeting main/master/develop.
 on:
+  push:
+    branches:
+      - "**"
   pull_request:
     branches:
+      - main
       - develop
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
 
 jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install libpq for pg gem
+        run: sudo apt-get update && sudo apt-get install -y libpq-dev
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: .ruby-version
+          bundler-cache: true
+
+      - name: Build
+        run: bundle exec rails zeitwerk:check
+
   test:
+    needs: build
     runs-on: ubuntu-latest
 
     services:
@@ -50,5 +76,5 @@ jobs:
       - name: Prepare test database
         run: bundle exec rails db:test:prepare
 
-      - name: Run RSpec
+      - name: Test
         run: bundle exec rspec
