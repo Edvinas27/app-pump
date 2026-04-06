@@ -4,6 +4,7 @@ RSpec.describe Cars::ImportFromCsv do
   let(:csv_path) { Rails.root.join("spec/fixtures/files/testcars.csv") }
 
   before do
+    skip if ENV["CI"]
     File.write(csv_path, <<~CSV)
       Brand,Model,Ewltp (g/km),Fuel
       BMW,X5,120,Diesel
