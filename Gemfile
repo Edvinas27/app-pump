@@ -5,6 +5,7 @@ source "https://rubygems.org"
 gem "bcrypt"
 gem "dotenv"
 gem "interactor-initializer"
+gem "jwt"
 gem "maxmind-geoip2"
 gem "pg", "~> 1.1"
 gem "puma", ">= 5.0"
@@ -23,6 +24,7 @@ group :test do
   gem "factory_bot_rails"
   gem "rspec"
   gem "rspec-rails"
+  gem "simplecov", require: false
 end
 
 group :development do
