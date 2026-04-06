@@ -1,13 +1,13 @@
 # frozen_string_literal: true
 
 class EmissionsController < BaseController
-  def calculate
-    car = Car.find_by(id: params[:car_id])
+  before_action :require_current_user!
 
-    if car.nil?
-      render json: { error: "Car must be selected" }, status: :unprocessable_content
-      return
-    end
+  def calculate
+    return render json: { error: "car_id is required" }, status: :unprocessable_content if params[:car_id].blank?
+
+    car = current_user.cars.find_by(id: params[:car_id])
+    return render json: { error: "Car not found" }, status: :not_found if car.nil?
 
     result = Emissions::Calculate.for(car, params[:distance_km])
 

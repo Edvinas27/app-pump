@@ -32,5 +32,21 @@ RSpec.describe Emissions::Calculate do
       expect { subject }.to raise_error(ArgumentError, "Distance must be greater than 0")
     end
   end
+
+  context 'when distance is not numeric' do
+    let(:distance_km) { "10km" }
+
+    it 'raises an error' do
+      expect { subject }.to raise_error(ArgumentError, "Distance must be a valid number")
+    end
+  end
+
+  context 'when distance is missing' do
+    let(:distance_km) { nil }
+
+    it 'raises an error' do
+      expect { subject }.to raise_error(ArgumentError, "Distance must be a valid number")
+    end
+  end
 end
 

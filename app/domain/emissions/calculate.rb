@@ -8,7 +8,7 @@ class Emissions::Calculate
   def run
     raise ArgumentError, "Car must be selected" if car.nil?
 
-    distance = distance_km.to_f
+    distance = parse_distance
     raise ArgumentError, "Distance must be greater than 0" if distance <= 0
 
     emission_rate_g_per_km = car.co2_emission.to_f
@@ -21,6 +21,14 @@ class Emissions::Calculate
       total_emission_g: total_emission_g,
       total_emission_kg: total_emission_kg
     }
+  end
+
+  private
+
+  def parse_distance
+    Float(distance_km)
+  rescue ArgumentError, TypeError
+    raise ArgumentError, "Distance must be a valid number"
   end
 end
 
