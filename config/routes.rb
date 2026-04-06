@@ -8,4 +8,6 @@ Rails.application.routes.draw do
 
   post "users", to: "registrations#create"
   post "sessions", to: "sessions#create"
+  post "feedbacks", to: "feedbacks#create"
+  get "feedbacks", to: "feedbacks#get"
 end
