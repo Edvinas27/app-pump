@@ -118,8 +118,6 @@ function selectRoute(route) {
       <div class="map-header">
         <span class="map-dot" />
         <p class="map-title">Route Planner</p>
-        <span class="map-hint" v-if="!hasRoutes && !loading">Click anywhere on the map to generate routes</span>
-        <span class="map-coords" v-else>Vilnius, Lithuania</span>
       </div>
 
       <div class="map-content">

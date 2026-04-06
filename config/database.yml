@@ -2,17 +2,27 @@ default: &default
   adapter: postgresql
   encoding: unicode
   pool: <%= ENV.fetch("RAILS_MAX_THREADS") { 5 } %>
-  enablessl: false
-  username: postgres
-  password: admin
-  host: 127.0.0.1
+  host: aws-0-eu-west-1.pooler.supabase.com
   port: 5432
-
+  username: postgres.ccjiyccxtfegpxxvckpl
+  password: pumpdatabase123@
+  database: postgres
 
 development:
   <<: *default
-  database: app_pump_dev
-  schema_search_path: myapp,sharedapp,public
+
 test:
   <<: *default
-  database: app_pump_test
+
+production:
+  primary: &primary_production
+    <<: *default
+  cache:
+    <<: *primary_production
+    migrations_paths: db/cache_migrate
+  queue:
+    <<: *primary_production
+    migrations_paths: db/queue_migrate
+  cable:
+    <<: *primary_production
+    migrations_paths: db/cable_migrate
