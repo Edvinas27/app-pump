@@ -5,7 +5,10 @@ class RegistrationsController < BaseController
     result = Users::Register.for(registration_params)
 
     if result[:success]
-      render json: user_json(result[:user]), status: :created
+      render json: {
+        user: user_json(result[:user]),
+        token: JsonWebToken.encode(user_id: result[:user].id)
+      }, status: :created
     else
       render json: { errors: result[:errors] }, status: :unprocessable_content
     end

@@ -2,6 +2,8 @@
 
 class Car < MainModel
   belongs_to :fuel_type
+  has_many :user_cars, dependent: :destroy
+  has_many :users, through: :user_cars
 
   validates :brand_name, :model, :fuel_type, :co2_emission, :year, presence: true
   validates :co2_emission, numericality: { greater_than_or_equal_to: 0 }

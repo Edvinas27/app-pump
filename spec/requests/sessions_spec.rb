@@ -6,15 +6,19 @@ RSpec.describe "Sessions", type: :request do
     let!(:user) { create(:user, email: "login@example.com", password: password) }
 
     context "with valid email and password" do
-      it "returns 200 and user data" do
+      it "returns 200, user data and jwt token" do
         post "/sessions", params: { email: "login@example.com", password: password }
 
         expect(response).to have_http_status(:ok)
         expect(json_response["user"]).to be_present
+        expect(json_response["token"]).to be_present
         expect(json_response["user"]["email"]).to eq("login@example.com")
         expect(json_response["user"]["username"]).to eq(user.username)
         expect(json_response["user"]).not_to have_key("password_digest")
         expect(json_response["user"]).not_to have_key("password")
+
+        payload = JsonWebToken.decode(json_response["token"])
+        expect(payload["user_id"]).to eq(user.id)
       end
     end
 
