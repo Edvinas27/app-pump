@@ -4,7 +4,7 @@ class CarsController < BaseController
   def get
     result = Cars::Get.for(car_params)
 
-    render json: result, status: :not_found
+    render json: result, status: :ok
   end
 
   def create
