@@ -19,4 +19,5 @@ Rails.application.routes.draw do
   get "feedbacks", to: "feedbacks#get"
 
   get "directions", to: "directions#show"
+  post "emissions/calculate", to: "emissions#calculate"
 end
