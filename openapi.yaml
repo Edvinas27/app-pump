@@ -3,7 +3,8 @@ info:
   title: App Pump API
   version: 1.0.0
   description: |
-    API for authentication, car catalog selection flow, user cars, and feedbacks.
+    API for authentication, car catalog selection flow, user cars, feedbacks, driving directions, and emissions.
+    Directions require a valid JWT from `POST /sessions` or `POST /users` (`Authorization: Bearer <token>`).
 servers:
   - url: http://127.0.0.1:3000
 tags:
@@ -12,6 +13,7 @@ tags:
   - name: Cars
   - name: UserCars
   - name: Feedbacks
+  - name: Directions
   - name: Emissions
 paths:
   /live:
@@ -362,6 +364,66 @@ paths:
               schema:
                 $ref: "#/components/schemas/ValidationErrorsResponse"
 
+  /directions:
+    get:
+      tags: [Directions]
+      summary: Get driving route between two points
+      description: |
+        Returns Mapbox Directions API v5 JSON for the given coordinates.
+        **Only authenticated users** may call this endpoint (same JWT as `/me/cars`).
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: start_lat
+          in: query
+          required: true
+          schema:
+            type: number
+            format: float
+          description: Start latitude (-90..90)
+        - name: start_lng
+          in: query
+          required: true
+          schema:
+            type: number
+            format: float
+          description: Start longitude (-180..180)
+        - name: end_lat
+          in: query
+          required: true
+          schema:
+            type: number
+            format: float
+          description: End latitude (-90..90)
+        - name: end_lng
+          in: query
+          required: true
+          schema:
+            type: number
+            format: float
+          description: End longitude (-180..180)
+      responses:
+        "200":
+          description: Mapbox Directions success payload (`code` is typically `Ok`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MapboxDirectionsResponse"
+        "401":
+          description: Missing or invalid JWT
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: Unauthorized
+        "422":
+          description: Invalid or missing coordinates, Mapbox error, or missing Mapbox configuration
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DirectionsErrorResponse"
+
   /emissions/calculate:
     post:
       tags: [Emissions]
@@ -469,7 +531,7 @@ components:
           $ref: "#/components/schemas/User"
         token:
           type: string
-          description: JWT token to be sent as `Authorization Bearer <token>`.
+          description: JWT token to be sent as `Authorization: Bearer <token>`.
 
     FuelType:
       type: object
@@ -612,4 +674,27 @@ components:
         errors:
           type: object
           additionalProperties:
+            type: string
+
+    MapboxDirectionsResponse:
+      type: object
+      description: Subset of Mapbox Directions API v5 JSON; additional fields may be present.
+      properties:
+        code:
+          type: string
+          example: Ok
+        routes:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+      additionalProperties: true
+
+    DirectionsErrorResponse:
+      type: object
+      required: [errors]
+      properties:
+        errors:
+          type: array
+          items:
             type: string
