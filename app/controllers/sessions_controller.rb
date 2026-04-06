@@ -5,7 +5,10 @@ class SessionsController < BaseController
     result = Users::Login.for(session_params[:email], session_params[:password])
 
     if result[:success]
-      render json: { user: user_json(result[:user]) }, status: :ok
+      render json: {
+        user: user_json(result[:user]),
+        token: JsonWebToken.encode(user_id: result[:user].id)
+      }, status: :ok
     else
       render json: { error: result[:error] }, status: :unauthorized
     end
