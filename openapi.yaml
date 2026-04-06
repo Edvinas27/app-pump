@@ -3,8 +3,8 @@ info:
   title: App Pump API
   version: 1.0.0
   description: |
-    API for authentication, car catalog selection flow, user cars, feedbacks, and directions.
-    Directions (GET /directions) require a logged-in user: send `Authorization: Bearer <JWT>` from register or login.
+    API for authentication, car catalog selection flow, user cars, feedbacks, and driving directions.
+    Directions require a valid JWT from `POST /sessions` or `POST /users` (`Authorization: Bearer <token>`).
 servers:
   - url: http://127.0.0.1:3000
 tags:
@@ -366,8 +366,10 @@ paths:
   /directions:
     get:
       tags: [Directions]
-      summary: Get driving directions (Mapbox)
-      description: Requires an authenticated user. Returns Mapbox Directions API JSON when coordinates are valid.
+      summary: Get driving route between two points
+      description: |
+        Returns Mapbox Directions API v5 JSON for the given coordinates.
+        **Only authenticated users** may call this endpoint (same JWT as `/me/cars`).
       security:
         - bearerAuth: []
       parameters:
@@ -376,34 +378,36 @@ paths:
           required: true
           schema:
             type: number
-            format: double
+            format: float
+          description: Start latitude (-90..90)
         - name: start_lng
           in: query
           required: true
           schema:
             type: number
-            format: double
+            format: float
+          description: Start longitude (-180..180)
         - name: end_lat
           in: query
           required: true
           schema:
             type: number
-            format: double
+            format: float
+          description: End latitude (-90..90)
         - name: end_lng
           in: query
           required: true
           schema:
             type: number
-            format: double
+            format: float
+          description: End longitude (-180..180)
       responses:
         "200":
-          description: Mapbox Directions response (e.g. code, routes)
+          description: Mapbox Directions success payload (`code` is typically `Ok`)
           content:
             application/json:
               schema:
-                type: object
-                description: Mapbox Directions v5 payload
-                additionalProperties: true
+                $ref: "#/components/schemas/MapboxDirectionsResponse"
         "401":
           description: Missing or invalid JWT
           content:
@@ -413,11 +417,11 @@ paths:
               example:
                 error: Unauthorized
         "422":
-          description: Missing or invalid coordinates, Mapbox error, or token not configured
+          description: Invalid or missing coordinates, Mapbox error, or missing Mapbox configuration
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/DirectionsErrorsResponse"
+                $ref: "#/components/schemas/DirectionsErrorResponse"
 
 components:
   securitySchemes:
@@ -586,15 +590,6 @@ components:
         error:
           type: string
 
-    DirectionsErrorsResponse:
-      type: object
-      required: [errors]
-      properties:
-        errors:
-          type: array
-          items:
-            type: string
-
     ValidationErrorsResponse:
       type: object
       required: [errors]
@@ -602,4 +597,27 @@ components:
         errors:
           type: object
           additionalProperties:
+            type: string
+
+    MapboxDirectionsResponse:
+      type: object
+      description: Subset of Mapbox Directions API v5 JSON; additional fields may be present.
+      properties:
+        code:
+          type: string
+          example: Ok
+        routes:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+      additionalProperties: true
+
+    DirectionsErrorResponse:
+      type: object
+      required: [errors]
+      properties:
+        errors:
+          type: array
+          items:
             type: string

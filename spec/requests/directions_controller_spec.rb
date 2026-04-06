@@ -7,7 +7,8 @@ require "net/http"
 
 RSpec.describe "Directions", type: :request do
   let(:user) { create(:user) }
-  let(:auth_headers) { { "Authorization" => "Bearer #{JsonWebToken.encode(user_id: user.id)}" } }
+  let(:token) { JsonWebToken.encode(user_id: user.id) }
+  let(:auth_headers) { { "Authorization" => "Bearer #{token}" } }
 
   let(:valid_params) do
     {
@@ -32,11 +33,20 @@ RSpec.describe "Directions", type: :request do
   end
 
   describe "GET /directions" do
-    it "returns 401 when Authorization is missing" do
-      get "/directions", params: valid_params
+    context "when the user is not authenticated" do
+      it "returns 401 without Authorization" do
+        get "/directions", params: valid_params
 
-      expect(response).to have_http_status(:unauthorized)
-      expect(json_response["error"]).to eq("Unauthorized")
+        expect(response).to have_http_status(:unauthorized)
+        expect(json_response["error"]).to eq("Unauthorized")
+      end
+
+      it "returns 401 for an invalid token" do
+        get "/directions", params: valid_params, headers: { "Authorization" => "Bearer invalid" }
+
+        expect(response).to have_http_status(:unauthorized)
+        expect(json_response["error"]).to eq("Unauthorized")
+      end
     end
 
     context "AC1: when required parameters are missing" do
