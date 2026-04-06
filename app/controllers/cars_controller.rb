@@ -18,7 +18,7 @@ class CarsController < BaseController
   end
 
   def brands
-    render json: Car.distinct.order(:brand_name).pluck(:brand_name), status: :ok
+    render json: Car.distinct.order(:brand_name).pluck(:brand_name), status: :not_found
   end
 
   def models
