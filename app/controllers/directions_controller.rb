@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
 class DirectionsController < BaseController
+  before_action :require_current_user!
+
   def show
     result = Directions::FetchMapbox.for(directions_params)
 

@@ -6,6 +6,9 @@ require "net/http"
 # AC2: successful response is Mapbox-shaped JSON from Directions::FetchMapbox.
 
 RSpec.describe "Directions", type: :request do
+  let(:user) { create(:user) }
+  let(:auth_headers) { { "Authorization" => "Bearer #{JsonWebToken.encode(user_id: user.id)}" } }
+
   let(:valid_params) do
     {
       start_lat: "54.6",
@@ -29,16 +32,23 @@ RSpec.describe "Directions", type: :request do
   end
 
   describe "GET /directions" do
+    it "returns 401 when Authorization is missing" do
+      get "/directions", params: valid_params
+
+      expect(response).to have_http_status(:unauthorized)
+      expect(json_response["error"]).to eq("Unauthorized")
+    end
+
     context "AC1: when required parameters are missing" do
       it "returns 422 and errors when start_lat is missing" do
-        get "/directions", params: valid_params.except(:start_lat)
+        get "/directions", params: valid_params.except(:start_lat), headers: auth_headers
 
         expect(response).to have_http_status(:unprocessable_content)
         expect(json_response["errors"]).to include("Missing parameter: start_lat")
       end
 
       it "returns 422 when all coordinates are missing" do
-        get "/directions"
+        get "/directions", headers: auth_headers
 
         expect(response).to have_http_status(:unprocessable_content)
         errors = json_response["errors"]
@@ -51,7 +61,7 @@ RSpec.describe "Directions", type: :request do
 
     context "AC1: when a coordinate is invalid" do
       it "returns 422 for non-numeric coordinate" do
-        get "/directions", params: valid_params.merge(start_lat: "x")
+        get "/directions", params: valid_params.merge(start_lat: "x"), headers: auth_headers
 
         expect(response).to have_http_status(:unprocessable_content)
         expect(json_response["errors"]).to include("Invalid number: start_lat")
@@ -64,7 +74,7 @@ RSpec.describe "Directions", type: :request do
       end
 
       it "returns 200 and Mapbox payload" do
-        get "/directions", params: valid_params
+        get "/directions", params: valid_params, headers: auth_headers
 
         expect(response).to have_http_status(:ok)
         expect(json_response["code"]).to eq("Ok")
@@ -81,7 +91,7 @@ RSpec.describe "Directions", type: :request do
       end
 
       it "returns 422 with configuration error" do
-        get "/directions", params: valid_params
+        get "/directions", params: valid_params, headers: auth_headers
 
         expect(response).to have_http_status(:unprocessable_content)
         expect(json_response["errors"]).to include("Mapbox access token is not configured")
