@@ -3,7 +3,7 @@ info:
   title: App Pump API
   version: 1.0.0
   description: |
-    API for authentication, car catalog selection flow, user cars, feedbacks, and driving directions.
+    API for authentication, car catalog selection flow, user cars, feedbacks, driving directions, and emissions.
     Directions require a valid JWT from `POST /sessions` or `POST /users` (`Authorization: Bearer <token>`).
 servers:
   - url: http://127.0.0.1:3000
@@ -14,6 +14,7 @@ tags:
   - name: UserCars
   - name: Feedbacks
   - name: Directions
+  - name: Emissions
 paths:
   /live:
     get:
@@ -423,6 +424,55 @@ paths:
               schema:
                 $ref: "#/components/schemas/DirectionsErrorResponse"
 
+  /emissions/calculate:
+    post:
+      tags: [Emissions]
+      summary: Calculate trip CO2 emissions for one of current user cars
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmissionCalculationRequest"
+      responses:
+        "200":
+          description: Emissions calculated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmissionCalculationResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: Unauthorized
+        "404":
+          description: Car not found for current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: Car not found
+        "422":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                missing_car_id:
+                  value:
+                    error: car_id is required
+                invalid_distance:
+                  value:
+                    error: Distance must be a valid number
+
 components:
   securitySchemes:
     bearerAuth:
@@ -582,6 +632,33 @@ components:
           type: string
         rating:
           type: integer
+
+    EmissionCalculationRequest:
+      type: object
+      required: [car_id, distance_km]
+      properties:
+        car_id:
+          type: integer
+        distance_km:
+          type: number
+          format: float
+
+    EmissionCalculationResponse:
+      type: object
+      required: [distance_km, emission_rate_g_per_km, total_emission_g, total_emission_kg]
+      properties:
+        distance_km:
+          type: number
+          format: float
+        emission_rate_g_per_km:
+          type: number
+          format: float
+        total_emission_g:
+          type: number
+          format: float
+        total_emission_kg:
+          type: number
+          format: float
 
     ErrorResponse:
       type: object
