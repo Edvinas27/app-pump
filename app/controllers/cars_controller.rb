@@ -20,6 +20,6 @@ class CarsController < BaseController
   private
 
   def car_params
-    params.permit(:brand_name, :model, :co2_emission, :fuel_type_id).to_h
+    params.permit(:brand_name, :model, :co2_emission, :fuel_type_id, :year).to_h
   end
 end
