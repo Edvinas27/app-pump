@@ -17,4 +17,6 @@ Rails.application.routes.draw do
   post "sessions", to: "sessions#create"
   post "feedbacks", to: "feedbacks#create"
   get "feedbacks", to: "feedbacks#get"
+
+  post "emissions/calculate", to: "emissions#calculate"
 end
