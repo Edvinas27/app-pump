@@ -4,7 +4,7 @@ class CarsController < BaseController
   def get
     result = Cars::Get.for(car_params)
 
-    render json: result, status: :not_found
+    render json: result, status: :ok
   end
 
   def create
@@ -18,7 +18,7 @@ class CarsController < BaseController
   end
 
   def brands
-    render json: Car.distinct.order(:brand_name).pluck(:brand_name), status: :not_found
+    render json: Car.distinct.order(:brand_name).pluck(:brand_name), status: :ok
   end
 
   def models
