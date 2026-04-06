@@ -1,0 +1,538 @@
+openapi: 3.0.3
+info:
+  title: App Pump API
+  version: 1.0.0
+  description: |
+    API for authentication, car catalog selection flow, user cars, and feedbacks.
+servers:
+  - url: http://127.0.0.1:3000
+tags:
+  - name: Health
+  - name: Auth
+  - name: Cars
+  - name: UserCars
+  - name: Feedbacks
+paths:
+  /live:
+    get:
+      tags: [Health]
+      summary: Liveness probe
+      responses:
+        "200":
+          description: OK
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: OK
+  /ready:
+    get:
+      tags: [Health]
+      summary: Readiness probe
+      responses:
+        "200":
+          description: OK
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: OK
+  /up:
+    get:
+      tags: [Health]
+      summary: Uptime probe
+      responses:
+        "200":
+          description: OK
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: OK
+
+  /users:
+    post:
+      tags: [Auth]
+      summary: Register user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterRequest"
+      responses:
+        "201":
+          description: User created with JWT token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthSuccessResponse"
+        "422":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationErrorsResponse"
+
+  /sessions:
+    post:
+      tags: [Auth]
+      summary: Login user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthSuccessResponse"
+        "401":
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error:
+                    type: string
+                    example: Neteisingas el. paštas arba slaptažodis
+
+  /cars:
+    get:
+      tags: [Cars]
+      summary: Get one exact car match
+      parameters:
+        - name: brand_name
+          in: query
+          schema: { type: string }
+        - name: model
+          in: query
+          schema: { type: string }
+        - name: fuel_type_id
+          in: query
+          schema: { type: integer }
+        - name: year
+          in: query
+          schema: { type: integer }
+        - name: co2_emission
+          in: query
+          schema: { type: number, format: float }
+      responses:
+        "200":
+          description: Car found or empty array
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/CarResponse"
+                  - type: array
+                    maxItems: 0
+    post:
+      tags: [Cars]
+      summary: Create car in catalog
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CarCreateRequest"
+      responses:
+        "201":
+          description: Car created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CarRecord"
+        "422":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationErrorsResponse"
+
+  /cars/brands:
+    get:
+      tags: [Cars]
+      summary: Get available brands
+      responses:
+        "200":
+          description: Distinct brand names
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+
+  /cars/models:
+    get:
+      tags: [Cars]
+      summary: Get models for selected brand
+      parameters:
+        - name: brand_name
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Distinct models for brand
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+        "422":
+          description: Missing required params
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: brand_name is required
+
+  /cars/fuel_types:
+    get:
+      tags: [Cars]
+      summary: Get fuel types for selected brand and model
+      parameters:
+        - name: brand_name
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: model
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Fuel types for selected brand/model
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/FuelType"
+        "422":
+          description: Missing required params
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: brand_name and model are required
+
+  /cars/years:
+    get:
+      tags: [Cars]
+      summary: Get years for selected brand, model, fuel type
+      parameters:
+        - name: brand_name
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: model
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: fuel_type_id
+          in: query
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Available years
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: integer
+        "422":
+          description: Missing required params
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: brand_name, model and fuel_type_id are required
+
+  /me/cars:
+    get:
+      tags: [UserCars]
+      summary: Get current user cars
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Cars assigned to current user
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CarResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: Unauthorized
+    post:
+      tags: [UserCars]
+      summary: Assign car to current user
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserCarCreateRequest"
+      responses:
+        "201":
+          description: Assigned successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CarResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: Unauthorized
+        "422":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationErrorsResponse"
+
+  /feedbacks:
+    get:
+      tags: [Feedbacks]
+      summary: Get all feedbacks
+      responses:
+        "200":
+          description: Feedback list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Feedback"
+    post:
+      tags: [Feedbacks]
+      summary: Create feedback
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FeedbackCreateRequest"
+      responses:
+        "201":
+          description: Feedback created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Feedback"
+        "422":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationErrorsResponse"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    User:
+      type: object
+      required: [id, email, username, created_at]
+      properties:
+        id:
+          type: integer
+        email:
+          type: string
+          format: email
+        username:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    RegisterRequest:
+      type: object
+      required: [email, username, password]
+      properties:
+        email:
+          type: string
+          format: email
+          example: user@example.com
+        username:
+          type: string
+          example: user123
+        password:
+          type: string
+          format: password
+          example: Password1
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+
+    AuthSuccessResponse:
+      type: object
+      required: [user, token]
+      properties:
+        user:
+          $ref: "#/components/schemas/User"
+        token:
+          type: string
+          description: JWT token to be sent as `Authorization: Bearer <token>`.
+
+    FuelType:
+      type: object
+      required: [id, name]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+
+    CarCreateRequest:
+      type: object
+      required: [brand_name, model, fuel_type_id, year, co2_emission]
+      properties:
+        brand_name:
+          type: string
+        model:
+          type: string
+        fuel_type_id:
+          type: integer
+        year:
+          type: integer
+        co2_emission:
+          type: number
+          format: float
+
+    CarRecord:
+      type: object
+      required: [id, brand_name, model, fuel_type_id, year, co2_emission, created_at, updated_at]
+      properties:
+        id:
+          type: integer
+        brand_name:
+          type: string
+        model:
+          type: string
+        fuel_type_id:
+          type: integer
+        year:
+          type: integer
+        co2_emission:
+          type: number
+          format: float
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    CarResponse:
+      type: object
+      required: [id, brand_name, model, year, co2_emission, fuel_type]
+      properties:
+        id:
+          type: integer
+        brand_name:
+          type: string
+        model:
+          type: string
+        year:
+          type: integer
+        co2_emission:
+          type: number
+          format: float
+        fuel_type:
+          $ref: "#/components/schemas/FuelType"
+
+    UserCarCreateRequest:
+      type: object
+      required: [car_id]
+      properties:
+        car_id:
+          type: integer
+
+    Feedback:
+      type: object
+      required: [id, comment, rating, created_at, updated_at]
+      properties:
+        id:
+          type: integer
+        comment:
+          type: string
+        rating:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    FeedbackCreateRequest:
+      type: object
+      required: [comment, rating]
+      properties:
+        comment:
+          type: string
+        rating:
+          type: integer
+
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+
+    ValidationErrorsResponse:
+      type: object
+      required: [errors]
+      properties:
+        errors:
+          type: object
+          additionalProperties:
+            type: string
