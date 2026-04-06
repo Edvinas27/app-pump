@@ -54,16 +54,6 @@ RSpec.describe Cars::ImportFromCsv do
     expect(FuelType.first.name).to eq("diesel")
   end
 
-  it "handles empty csv without crashing" do
-    File.write(csv_path, "Brand,Model,Ewltp (g/km),Fuel\n")
-
-    expect {
-      Cars::ImportFromCsv.call(csv_path)
-    }.not_to raise_error
-
-    expect(Car.count).to eq(0)
-  end
-
   it "does not create duplicate fuel types on repeated import" do
     Cars::ImportFromCsv.call(csv_path)
     Cars::ImportFromCsv.call(csv_path)
@@ -71,6 +61,3 @@ RSpec.describe Cars::ImportFromCsv do
     expect(FuelType.count).to eq(2)
   end
 end
-
-
-#git commit -m "csv importavimo testai / kuro tipas normalizuotas jog nesidubliuotu

@@ -10,6 +10,7 @@ class Cars::ExportToJson
         id: car.id,
         brand_name: car.brand_name,
         model: car.model,
+        year: car.year,
         co2_emission: car.co2_emission,
         fuel_type: car.fuel_type&.name
       }

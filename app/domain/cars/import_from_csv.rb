@@ -7,6 +7,7 @@ class Cars::ImportFromCsv
       Cars::Create.for(
         brand_name: row["Brand"]&.strip,
         model: row["Model"]&.strip,
+        year: row["Year"]&.strip,
         co2_emission: row["Ewltp (g/km)"]&.to_f,
         fuel_type_id: find_fuel_type(row["Fuel"])
       )
