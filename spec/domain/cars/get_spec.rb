@@ -8,6 +8,7 @@ RSpec.describe Cars::Get do
     {
       brand_name: "Audi",
       model: "A4",
+      year: 2022,
       co2_emission: 120,
       fuel_type_id: fuel_type.id
     }
@@ -26,6 +27,7 @@ RSpec.describe Cars::Get do
         id: car.id,
         brand_name: car.brand_name,
         model: car.model,
+        year: car.year,
         co2_emission: car.co2_emission,
         fuel_type: {
           id: fuel_type.id,

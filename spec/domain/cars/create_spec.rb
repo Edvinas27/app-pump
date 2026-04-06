@@ -8,6 +8,7 @@ RSpec.describe Cars::Create do
     {
       brand_name: "Audi",
       model: "A4",
+      year: 2022,
       co2_emission: 120,
       fuel_type_id: fuel_type.id
     }
@@ -21,7 +22,7 @@ RSpec.describe Cars::Create do
   end
 
   context 'when params are invalid' do
-    let(:params) { { brand_name: nil, model: nil, co2_emission: -1, fuel_type_id: nil } }
+    let(:params) { { brand_name: nil, model: nil, year: nil, co2_emission: -1, fuel_type_id: nil } }
 
     it 'does not create a new car' do
       expect { subject }.not_to change(Car, :count)
@@ -32,6 +33,7 @@ RSpec.describe Cars::Create do
       expect(subject[:errors]).to eq({
         brand_name: "can't be blank",
         model: "can't be blank",
+        year: "can't be blank",
         co2_emission: "must be greater than or equal to 0",
         fuel_type: "must exist"
       })

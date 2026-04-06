@@ -5,4 +5,7 @@ Rails.application.routes.draw do
 
   post "cars", to: "cars#create"
   get "cars", to: "cars#get"
+
+  post "feedbacks", to: "feedbacks#create"
+  get "feedbacks", to: "feedbacks#get"
 end
