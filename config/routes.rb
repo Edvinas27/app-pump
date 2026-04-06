@@ -26,4 +26,6 @@ Rails.application.routes.draw do
 
   get "directions", to: "directions#show"
   post "emissions/calculate", to: "emissions#calculate"
+
+  get "cars/emission", to: "cars#emission"
 end
