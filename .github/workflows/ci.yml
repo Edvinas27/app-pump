@@ -42,6 +42,11 @@ jobs:
           ruby-version: .ruby-version
           bundler-cache: true
 
+      - name: Remove Supabase-only extensions from schema
+        run: |
+          ruby -i -pe "gsub(/^\s*enable_extension \"graphql\.pg_graphql\"\n/, '')" db/schema.rb
+          ruby -i -pe "gsub(/^\s*enable_extension \"vault\.supabase_vault\"\n/, '')" db/schema.rb
+
       - name: Prepare test database
         run: bundle exec rails db:test:prepare
 
