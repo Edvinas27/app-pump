@@ -5,6 +5,7 @@ RSpec.describe CarsController, type: :request do
     {
       brand_name: 'Audi',
       model: 'A4',
+      year: 2022,
       co2_emission: 120,
       fuel_type_id: fuel_type.id
     }

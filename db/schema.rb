@@ -10,10 +10,23 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_03_16_000000) do
-ActiveRecord::Schema[8.0].define(version: 2026_03_16_190000) do
+ActiveRecord::Schema[8.0].define(version: 2026_04_06_120000) do
+  create_schema "auth"
+  create_schema "extensions"
+  create_schema "graphql"
+  create_schema "graphql_public"
+  create_schema "pgbouncer"
+  create_schema "realtime"
+  create_schema "storage"
+  create_schema "vault"
+
   # These are extensions that must be enabled in order to support this database
+  enable_extension "extensions.pg_stat_statements"
+  enable_extension "extensions.pgcrypto"
+  enable_extension "extensions.uuid-ossp"
+  enable_extension "graphql.pg_graphql"
   enable_extension "pg_catalog.plpgsql"
+  enable_extension "vault.supabase_vault"
 
   create_table "cars", force: :cascade do |t|
     t.string "brand_name", null: false
@@ -22,7 +35,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_03_16_190000) do
     t.bigint "fuel_type_id", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.index ["brand_name", "model", "fuel_type_id", "co2_emission"], name: "idx_cars_unique_combination", unique: true
+    t.integer "year", null: false
+    t.index ["brand_name", "model", "fuel_type_id", "co2_emission", "year"], name: "idx_cars_unique_combination", unique: true
     t.index ["fuel_type_id"], name: "index_cars_on_fuel_type_id"
   end
 
