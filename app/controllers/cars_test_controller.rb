@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-class CarsController < BaseController
+class CarsTestController < BaseController
   def get
     result = Cars::Get.for(car_params)
 
