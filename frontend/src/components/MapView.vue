@@ -1,23 +1,68 @@
 <script setup>
 import { LMap, LTileLayer, LPolyline, LMarker, LTooltip } from "@vue-leaflet/vue-leaflet"
 import "leaflet/dist/leaflet.css"
-import { ref, computed, onMounted } from "vue"
+import { ref, computed, watch, onMounted } from "vue"
+import { API_BASE_URL } from "../api/auth"
 
-const mapRef    = ref(null)
-const zoom      = ref(12)
-const center    = ref([54.6872, 25.2797])
-const startCoord = [54.6872, 25.2797]
+const props = defineProps({
+  activeCarId: {
+    type: Number,
+    default: undefined,
+  },
+})
+
+const mapRef = ref(null)
+const zoom = ref(12)
+const center = ref([54.6872, 25.2797])
+const startCoord = ref([54.6872, 25.2797])
+
+/** Next map click sets start or destination */
+const mapTarget = ref("end")
 
 const routes = ref([
-  { id: 1, name: "Route A", from: "Vilnius Old Town", to: "Clicked Location", distance: null, duration: null, type: "Example type",  points: [] },
-  { id: 2, name: "Route B", from: "Vilnius Old Town", to: "Clicked Location", distance: null, duration: null, type: "Example type",   points: [] },
-  { id: 3, name: "Route C", from: "Vilnius Old Town", to: "Clicked Location", distance: null, duration: null, type: "Example type",  points: [] },
+  { id: 1, name: "Route A", from: "", to: "", distance: null, duration: null, type: "Alternate", points: [], distanceKmRaw: null },
+  { id: 2, name: "Route B", from: "", to: "", distance: null, duration: null, type: "Alternate", points: [], distanceKmRaw: null },
+  { id: 3, name: "Route C", from: "", to: "", distance: null, duration: null, type: "Alternate", points: [], distanceKmRaw: null },
 ])
 
-const loading        = ref(false)
-const error          = ref(null)
-const clickedPoint   = ref(null)
-const hasRoutes      = ref(false)
+const loading = ref(false)
+const error = ref(null)
+const clickedPoint = ref(null)
+const hasRoutes = ref(false)
+
+const emissionLoading = ref(false)
+const emissionError = ref("")
+const emissionData = ref(null)
+
+const CAR_REQUIRED_MSG =
+  "Select a car in My cars (top right) before planning or choosing a route."
+
+const startPlaceLabel = ref("")
+const endPlaceLabel = ref("Click map (destination mode)")
+
+async function reverseGeocodeLabel(latlng) {
+  if (!latlng || latlng.length < 2) return "—"
+  const fallback = formatCoordLabel(latlng)
+  try {
+    const token = getAuthToken()
+    if (!token) return fallback
+    const [lat, lng] = latlng
+    const q = new URLSearchParams({ lat: String(lat), lng: String(lng) })
+    const res = await fetch(`${API_BASE_URL}/geocode/reverse?${q}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) return fallback
+    if (typeof data.label === "string" && data.label.trim()) return data.label.trim()
+    return fallback
+  } catch {
+    return fallback
+  }
+}
+
+onMounted(async () => {
+  startPlaceLabel.value = await reverseGeocodeLabel(startCoord.value)
+})
 
 function getPerpOffset(start, end, factor) {
   const dlat = end[0] - start[0]
@@ -27,7 +72,10 @@ function getPerpOffset(start, end, factor) {
   return [midLat - dlng * factor, midLng + dlat * factor]
 }
 
-const API_BASE = "http://127.0.0.1:3000"
+function formatCoordLabel(latlng) {
+  if (!latlng || latlng.length < 2) return "—"
+  return `${Number(latlng[0]).toFixed(4)}°, ${Number(latlng[1]).toFixed(4)}°`
+}
 
 function getAuthToken() {
   return localStorage.getItem("token")
@@ -50,7 +98,7 @@ async function fetchMapboxDirections(params) {
     q.set("via_lng", String(params.via_lng))
   }
 
-  const res = await fetch(`${API_BASE}/directions?${q}`, {
+  const res = await fetch(`${API_BASE_URL}/directions?${q}`, {
     headers: { Authorization: `Bearer ${token}` },
   })
   const data = await res.json().catch(() => ({}))
@@ -69,51 +117,74 @@ function formatDistanceKm(distanceKm) {
   return `${Number(distanceKm).toFixed(2)} km`
 }
 
-async function fetchRoutes(endCoord) {
-  loading.value = true
-  error.value   = null
+function requireCarOrExplain() {
+  if (props.activeCarId != null) return true
+  error.value = CAR_REQUIRED_MSG
+  return false
+}
 
-  const offsets = [0, 0.3, -0.3] 
+async function fetchRoutes(endCoord) {
+  if (!endCoord) return
+  if (!requireCarOrExplain()) return
+
+  loading.value = true
+  error.value = null
+
+  const offsets = [0, 0.3, -0.3]
+  const start = startCoord.value
 
   try {
     const baseParams = {
-      start_lat: startCoord[0],
-      start_lng: startCoord[1],
+      start_lat: start[0],
+      start_lng: start[1],
       end_lat: endCoord[0],
       end_lng: endCoord[1],
     }
 
-    const results = await Promise.all(
-      offsets.map(async (factor) => {
-        let params = { ...baseParams }
-        if (factor !== 0) {
-          const wp = getPerpOffset(startCoord, endCoord, factor)
-          params = { ...params, via_lat: wp[0], via_lng: wp[1] }
-        }
-        return fetchMapboxDirections(params)
-      })
-    )
+    const [results, fromLabel, toLabel] = await Promise.all([
+      Promise.all(
+        offsets.map(async (factor) => {
+          let params = { ...baseParams }
+          if (factor !== 0) {
+            const wp = getPerpOffset(start, endCoord, factor)
+            params = { ...params, via_lat: wp[0], via_lng: wp[1] }
+          }
+          return fetchMapboxDirections(params)
+        }),
+      ),
+      reverseGeocodeLabel(start),
+      reverseGeocodeLabel(endCoord),
+    ])
+
+    startPlaceLabel.value = fromLabel
+    endPlaceLabel.value = toLabel
 
     results.forEach((mapboxData, i) => {
       const leg = mapboxData.routes[0]
+      const km = leg.distance_km != null ? Number(leg.distance_km) : null
       routes.value[i].points = leg.geometry.coordinates.map(([lng, lat]) => [lat, lng])
-      routes.value[i].distance = formatDistanceKm(leg.distance_km)
+      routes.value[i].distance = formatDistanceKm(km)
       routes.value[i].duration = `${Math.round(leg.duration / 60)} min`
+      routes.value[i].from = fromLabel
+      routes.value[i].to = toLabel
+      routes.value[i].distanceKmRaw = km != null && !Number.isNaN(km) ? km : null
     })
 
     hasRoutes.value = true
+    selectedRouteId.value = null
+    emissionData.value = null
+    emissionError.value = ""
 
-    const allPoints = results.flatMap(d =>
-      d.routes[0].geometry.coordinates.map(([lng, lat]) => [lat, lng])
+    const allPoints = results.flatMap((d) =>
+      d.routes[0].geometry.coordinates.map(([lng, lat]) => [lat, lng]),
     )
-    const lats = allPoints.map(p => p[0])
-    const lngs = allPoints.map(p => p[1])
+    const lats = allPoints.map((p) => p[0])
+    const lngs = allPoints.map((p) => p[1])
     const bounds = [
       [Math.min(...lats), Math.min(...lngs)],
       [Math.max(...lats), Math.max(...lngs)],
     ]
     mapRef.value.leafletObject.fitBounds(bounds, { padding: [40, 40] })
-
   } catch (e) {
     error.value =
       e.message === "AUTH_REQUIRED"
@@ -127,58 +198,162 @@ async function fetchRoutes(endCoord) {
 
 function onMapClick(e) {
   const { lat, lng } = e.latlng
-  clickedPoint.value  = [lat, lng]
+  if (!requireCarOrExplain()) return
+
+  if (mapTarget.value === "start") {
+    startCoord.value = [lat, lng]
+    reverseGeocodeLabel(startCoord.value).then((t) => {
+      startPlaceLabel.value = t
+    })
+    if (clickedPoint.value) {
+      selectedRouteId.value = null
+      fetchRoutes(clickedPoint.value)
+    }
+    return
+  }
+
+  clickedPoint.value = [lat, lng]
   selectedRouteId.value = null
   fetchRoutes([lat, lng])
 }
 
 const routeColors = {
   default: ["#93c5fd", "#86efac", "#fca5a5"],
-  active:  ["#2563eb", "#16a34a", "#dc2626"],
+  active: ["#2563eb", "#16a34a", "#dc2626"],
 }
 
 const selectedRouteId = ref(null)
-const selectedRoute   = computed(() => routes.value.find(r => r.id === selectedRouteId.value) || null)
+const selectedRoute = computed(() => routes.value.find((r) => r.id === selectedRouteId.value) || null)
 
 function getRouteColor(route, isActive) {
   const idx = routes.value.indexOf(route)
   return isActive ? routeColors.active[idx] : routeColors.default[idx]
 }
 
+function canSelectRoute() {
+  return props.activeCarId != null
+}
+
 function selectRoute(route) {
+  if (!canSelectRoute()) return
   selectedRouteId.value = route.id
 }
+
+watch(
+  () => [selectedRouteId.value, props.activeCarId, selectedRoute.value?.distanceKmRaw],
+  async () => {
+    emissionData.value = null
+    emissionError.value = ""
+    const r = selectedRoute.value
+    if (!r || selectedRouteId.value == null || props.activeCarId == null || r.distanceKmRaw == null) {
+      emissionLoading.value = false
+      return
+    }
+
+    const token = getAuthToken()
+    if (!token) return
+
+    emissionLoading.value = true
+    try {
+      const res = await fetch(`${API_BASE_URL}/emissions/calculate`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "application/json",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          car_id: props.activeCarId,
+          distance_km: r.distanceKmRaw,
+        }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        throw new Error(typeof data.error === "string" ? data.error : "Emissions request failed")
+      }
+      emissionData.value = data
+    } catch (e) {
+      emissionError.value = e instanceof Error ? e.message : "Could not load emissions."
+    } finally {
+      emissionLoading.value = false
+    }
+  },
+  { flush: "post" },
+)
+
+watch(
+  () => props.activeCarId,
+  (id) => {
+    if (id == null) {
+      selectedRouteId.value = null
+      emissionData.value = null
+      emissionError.value = ""
+    } else if (error.value === CAR_REQUIRED_MSG) {
+      error.value = null
+    }
+  },
+)
 </script>
 
 <template>
   <div class="map-wrapper">
     <div class="map-card">
-
       <div class="map-header">
         <span class="map-dot" />
         <p class="map-title">Route Planner</p>
       </div>
 
       <div class="map-content">
-
         <div class="sidebar">
           <div class="route-meta">
+            <p class="meta-hint">Choose what the next map click sets:</p>
+            <div class="mode-row">
+              <button
+                type="button"
+                class="mode-btn"
+                :class="{ active: mapTarget === 'start' }"
+                @click="mapTarget = 'start'"
+              >
+                Set start
+              </button>
+              <button
+                type="button"
+                class="mode-btn"
+                :class="{ active: mapTarget === 'end' }"
+                @click="mapTarget = 'end'"
+              >
+                Set destination
+              </button>
+            </div>
             <div class="meta-row">
               <span class="meta-icon">📍</span>
-              <span class="meta-text">Vilnius Old Town</span>
+              <span class="meta-text meta-text--place">{{ startPlaceLabel || formatCoordLabel(startCoord) }}</span>
             </div>
             <div class="meta-divider" />
             <div class="meta-row">
               <span class="meta-icon">🏁</span>
-              <span class="meta-text">{{ clickedPoint ? `${clickedPoint[0].toFixed(4)}°, ${clickedPoint[1].toFixed(4)}°` : 'Click map to set destination' }}</span>
+              <span class="meta-text meta-text--place">{{
+                clickedPoint ? endPlaceLabel : "Click map (destination mode)"
+              }}</span>
             </div>
           </div>
 
           <p class="sidebar-label">Available Routes</p>
 
-          <div v-if="!hasRoutes && !loading && !error" class="state-box">
+          <div v-if="!activeCarId" class="state-box car-hint">
+            <span class="state-icon">🚗</span>
+            <p>Open <strong>My cars</strong> (top right) and pick or add a car to plan routes and see emissions.</p>
+          </div>
+
+          <div v-else-if="!hasRoutes && !loading && !error" class="state-box">
             <span class="state-icon">🗺️</span>
-            <p>Click anywhere on the map to calculate routes</p>
+            <p>
+              {{
+                mapTarget === "start"
+                  ? "Click the map to set the start point, then switch to Set destination."
+                  : "Click the map to set the destination and load routes."
+              }}
+            </p>
           </div>
 
           <div v-else-if="loading" class="state-box">
@@ -189,7 +364,14 @@ function selectRoute(route) {
           <div v-else-if="error" class="state-box error">
             <span>⚠️</span>
             <p>{{ error }}</p>
-            <button class="retry-btn" @click="fetchRoutes(clickedPoint)">Retry</button>
+            <button
+              v-if="clickedPoint && activeCarId"
+              type="button"
+              class="retry-btn"
+              @click="fetchRoutes(clickedPoint)"
+            >
+              Retry
+            </button>
           </div>
 
           <template v-else>
@@ -197,7 +379,10 @@ function selectRoute(route) {
               v-for="(route, idx) in routes"
               :key="route.id"
               class="route-card"
-              :class="{ active: selectedRouteId === route.id }"
+              :class="{
+                active: selectedRouteId === route.id,
+                disabled: !canSelectRoute(),
+              }"
               :style="{ '--accent': routeColors.active[idx] }"
               @click="selectRoute(route)"
             >
@@ -236,10 +421,28 @@ function selectRoute(route) {
                     <span class="info-value">{{ selectedRoute.type }}</span>
                   </div>
                 </div>
+
+                <div class="emission-block">
+                  <p class="emission-title">CO₂ estimate (your car)</p>
+                  <div v-if="emissionLoading" class="emission-muted">Calculating emissions…</div>
+                  <div v-else-if="emissionError" class="emission-err">{{ emissionError }}</div>
+                  <template v-else-if="emissionData">
+                    <div class="info-item">
+                      <span class="info-label">Trip CO₂</span>
+                      <span class="info-value">{{ Number(emissionData.total_emission_kg).toFixed(3) }} kg</span>
+                    </div>
+                    <div class="info-item">
+                      <span class="info-label">Rate</span>
+                      <span class="info-value">{{ emissionData.emission_rate_g_per_km }} g/km</span>
+                    </div>
+                  </template>
+                  <div v-else class="emission-muted">—</div>
+                </div>
               </div>
               <div v-else class="route-info-empty">
                 <span>👆</span>
-                <p>Click a route card or line on the map to view details</p>
+                <p v-if="!canSelectRoute()">Select a car in My cars to choose a route.</p>
+                <p v-else>Click a route card or line on the map to view details and emissions.</p>
               </div>
             </transition>
           </template>
@@ -255,8 +458,8 @@ function selectRoute(route) {
             <template v-if="hasRoutes && !loading">
               <l-polyline
                 v-for="(route, idx) in routes"
-                :bubbling-mouse-events="false"
                 :key="route.id"
+                :bubbling-mouse-events="false"
                 :lat-lngs="route.points"
                 :color="getRouteColor(route, selectedRouteId === route.id)"
                 :weight="selectedRouteId === route.id ? 6 : 4"
@@ -270,7 +473,6 @@ function selectRoute(route) {
               </l-polyline>
             </template>
 
-        
             <l-marker :lat-lng="startCoord">
               <l-tooltip :options="{ permanent: true, direction: 'top' }">Start</l-tooltip>
             </l-marker>
@@ -280,17 +482,23 @@ function selectRoute(route) {
             </l-marker>
           </l-map>
 
-  
           <div v-if="loading" class="map-loading">
             <div class="spinner large" />
             <p>Fetching road data...</p>
           </div>
 
           <div v-if="!hasRoutes && !loading" class="map-hint-overlay">
-            <div class="hint-pill">🖱️ Click anywhere to set destination</div>
+            <div class="hint-pill">
+              {{
+                !activeCarId
+                  ? "Select a car in My cars first"
+                  : mapTarget === "start"
+                    ? "Click map to set start"
+                    : "Click map to set destination"
+              }}
+            </div>
           </div>
         </div>
-
       </div>
     </div>
   </div>
@@ -305,7 +513,7 @@ function selectRoute(route) {
   justify-content: center;
   padding: 32px;
   box-sizing: border-box;
-  font-family: 'Inter', sans-serif;
+  font-family: "Inter", sans-serif;
 }
 
 .map-card {
@@ -313,7 +521,9 @@ function selectRoute(route) {
   max-width: 1100px;
   background: #ffffff;
   border-radius: 20px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.04), 0 8px 24px rgba(0,0,0,0.10);
+  box-shadow:
+    0 2px 4px rgba(0, 0, 0, 0.04),
+    0 8px 24px rgba(0, 0, 0, 0.1);
   overflow: hidden;
 }
 
@@ -332,11 +542,17 @@ function selectRoute(route) {
   flex-shrink: 0;
   animation: pulse 2s infinite;
 }
-.map-title { margin: 0; font-size: 14px; font-weight: 600; color: #1e293b; }
-.map-coords { margin-left: auto; font-size: 12px; color: #94a3b8; }
-.map-hint   { margin-left: auto; font-size: 12px; color: #3b82f6; font-weight: 500; }
+.map-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #1e293b;
+}
 
-.map-content { display: flex; height: 560px; }
+.map-content {
+  display: flex;
+  height: 560px;
+}
 
 .sidebar {
   width: 270px;
@@ -349,11 +565,71 @@ function selectRoute(route) {
   gap: 12px;
 }
 
-.route-meta { background: #f8fafc; border-radius: 10px; padding: 10px 12px; }
-.meta-row { display: flex; align-items: center; gap: 8px; }
-.meta-icon { font-size: 13px; }
-.meta-text { font-size: 12px; font-weight: 500; color: #334155; }
-.meta-divider { width: 1px; height: 14px; background: #cbd5e1; margin: 4px 0 4px 6px; }
+.route-meta {
+  background: #f8fafc;
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+.meta-hint {
+  margin: 0 0 8px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #94a3b8;
+}
+.mode-row {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.mode-btn {
+  flex: 1;
+  padding: 6px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fff;
+  color: #64748b;
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    border-color 0.15s,
+    color 0.15s;
+}
+.mode-btn:hover {
+  border-color: #cbd5e1;
+  color: #334155;
+}
+.mode-btn.active {
+  border-color: #2563eb;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+.meta-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.meta-icon {
+  font-size: 13px;
+}
+.meta-text {
+  font-size: 12px;
+  font-weight: 500;
+  color: #334155;
+  word-break: break-all;
+}
+.meta-text--place {
+  word-break: break-word;
+}
+.meta-divider {
+  width: 1px;
+  height: 14px;
+  background: #cbd5e1;
+  margin: 4px 0 4px 6px;
+}
 
 .sidebar-label {
   margin: 0;
@@ -372,65 +648,178 @@ function selectRoute(route) {
   transition: all 0.18s ease;
   background: #fff;
 }
-.route-card:hover { border-color: var(--accent); background: #f8fafc; }
+.route-card:hover:not(.disabled) {
+  border-color: var(--accent);
+  background: #f8fafc;
+}
 .route-card.active {
   border-color: var(--accent);
   background: color-mix(in srgb, var(--accent) 8%, white);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 15%, transparent);
 }
-.route-card-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
-.route-name { font-size: 13px; font-weight: 600; color: #1e293b; }
+.route-card.disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+  pointer-events: none;
+}
+.route-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+.route-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1e293b;
+}
 .route-badge {
-  font-size: 10px; font-weight: 600;
+  font-size: 10px;
+  font-weight: 600;
   color: var(--accent);
   background: color-mix(in srgb, var(--accent) 12%, white);
-  padding: 2px 7px; border-radius: 20px;
+  padding: 2px 7px;
+  border-radius: 20px;
 }
-.route-card-stats { display: flex; gap: 12px; font-size: 12px; color: #64748b; }
+.route-card-stats {
+  display: flex;
+  gap: 12px;
+  font-size: 12px;
+  color: #64748b;
+}
 
-.route-info-box { background: #f8fafc; border-radius: 12px; padding: 12px; margin-top: auto; }
-.info-title { margin: 0 0 8px; font-size: 12px; font-weight: 700; color: #1e293b; }
-.info-grid { display: flex; flex-direction: column; gap: 5px; }
-.info-item { display: flex; justify-content: space-between; }
-.info-label { font-size: 11px; color: #94a3b8; }
-.info-value { font-size: 11px; font-weight: 600; color: #334155; }
+.route-info-box {
+  background: #f8fafc;
+  border-radius: 12px;
+  padding: 12px;
+  margin-top: auto;
+}
+.info-title {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #1e293b;
+}
+.info-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.info-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+.info-label {
+  font-size: 11px;
+  color: #94a3b8;
+  flex-shrink: 0;
+}
+.info-value {
+  font-size: 11px;
+  font-weight: 600;
+  color: #334155;
+  text-align: right;
+}
+
+.emission-block {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid #e2e8f0;
+}
+.emission-title {
+  margin: 0 0 8px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #0f172a;
+}
+.emission-muted {
+  font-size: 11px;
+  color: #94a3b8;
+}
+.emission-err {
+  font-size: 11px;
+  color: #dc2626;
+}
 
 .route-info-empty {
   margin-top: auto;
-  display: flex; flex-direction: column; align-items: center;
-  gap: 6px; padding: 16px; text-align: center;
-  color: #94a3b8; font-size: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 16px;
+  text-align: center;
+  color: #94a3b8;
+  font-size: 12px;
 }
-.route-info-empty span { font-size: 22px; }
-
+.route-info-empty span {
+  font-size: 22px;
+}
 
 .state-box {
-  display: flex; flex-direction: column; align-items: center;
-  gap: 8px; padding: 20px; text-align: center;
-  font-size: 12px; color: #64748b;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 20px;
+  text-align: center;
+  font-size: 12px;
+  color: #64748b;
 }
-.state-icon { font-size: 28px; }
-.state-box.error { color: #dc2626; }
+.state-box.car-hint {
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 12px;
+  color: #92400e;
+}
+.state-box.car-hint strong {
+  font-weight: 700;
+}
+.state-icon {
+  font-size: 28px;
+}
+.state-box.error {
+  color: #dc2626;
+}
 .retry-btn {
-  margin-top: 4px; padding: 5px 14px;
-  font-size: 12px; font-weight: 600;
-  border: 1.5px solid #dc2626; border-radius: 8px;
-  color: #dc2626; background: transparent;
-  cursor: pointer; transition: all 0.15s;
+  margin-top: 4px;
+  padding: 5px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1.5px solid #dc2626;
+  border-radius: 8px;
+  color: #dc2626;
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.15s;
 }
-.retry-btn:hover { background: #fef2f2; }
+.retry-btn:hover {
+  background: #fef2f2;
+}
 
-/* Map */
-.map-body { flex: 1; position: relative; }
-.map { height: 100%; width: 100%; cursor: crosshair; }
+.map-body {
+  flex: 1;
+  position: relative;
+}
+.map {
+  height: 100%;
+  width: 100%;
+  cursor: crosshair;
+}
 
 .map-loading {
-  position: absolute; inset: 0;
-  background: rgba(255,255,255,0.75);
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.75);
   backdrop-filter: blur(3px);
-  display: flex; flex-direction: column;
-  align-items: center; justify-content: center;
-  gap: 10px; font-size: 13px; color: #64748b;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  font-size: 13px;
+  color: #64748b;
   z-index: 1000;
 }
 
@@ -443,7 +832,7 @@ function selectRoute(route) {
   pointer-events: none;
 }
 .hint-pill {
-  background: rgba(255,255,255,0.92);
+  background: rgba(255, 255, 255, 0.92);
   backdrop-filter: blur(6px);
   border: 1px solid #e2e8f0;
   border-radius: 999px;
@@ -451,26 +840,45 @@ function selectRoute(route) {
   font-size: 12px;
   font-weight: 500;
   color: #334155;
-  box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
   white-space: nowrap;
 }
 
-/* Spinner */
 .spinner {
-  width: 22px; height: 22px;
+  width: 22px;
+  height: 22px;
   border: 2.5px solid #e2e8f0;
   border-top-color: #2563eb;
   border-radius: 50%;
   animation: spin 0.7s linear infinite;
 }
-.spinner.large { width: 36px; height: 36px; border-width: 3.5px; }
+.spinner.large {
+  width: 36px;
+  height: 36px;
+  border-width: 3.5px;
+}
 
-.fade-enter-active, .fade-leave-active { transition: opacity 0.2s ease; }
-.fade-enter-from, .fade-leave-to { opacity: 0; }
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
 
 @keyframes pulse {
-  0%, 100% { box-shadow: 0 0 0 3px rgba(34,197,94,0.2); }
-  50%       { box-shadow: 0 0 0 6px rgba(34,197,94,0.08); }
+  0%,
+  100% {
+    box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.2);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(34, 197, 94, 0.08);
+  }
 }
-@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
 </style>

@@ -2,6 +2,8 @@
 import { ref, computed, watch } from "vue"
 import axios from "axios"
 
+const emit = defineEmits(["active-car-change"])
+
 /* ---------------- API ---------------- */
 
 const api = axios.create({ baseURL: "http://127.0.0.1:3000" })
@@ -32,6 +34,14 @@ const loading  = ref(false)
 const error    = ref("")
 
 const activeCar = computed(() => cars.value.find(c => c.id === activeId.value))
+
+watch(
+  activeId,
+  (id) => {
+    emit("active-car-change", id ?? null)
+  },
+  { immediate: true },
+)
 
 /* ---------------- FORM ---------------- */
 
