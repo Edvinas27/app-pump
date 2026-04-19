@@ -19,7 +19,18 @@ RSpec.describe "Directions", type: :request do
     }
   end
 
-  let(:mapbox_ok_body) { { "code" => "Ok", "routes" => [ { "distance" => 1000 } ] }.to_json }
+  let(:mapbox_ok_body) do
+    {
+      "code" => "Ok",
+      "routes" => [
+        {
+          "distance" => 1000,
+          "duration" => 120,
+          "geometry" => { "type" => "LineString", "coordinates" => [ [ 25.2, 54.6 ], [ 25.3, 54.7 ] ] }
+        }
+      ]
+    }.to_json
+  end
 
   around do |example|
     previous = ENV.fetch("MAPBOX_ACCESS_TOKEN", nil)
@@ -83,12 +94,14 @@ RSpec.describe "Directions", type: :request do
         allow(Net::HTTP).to receive(:get).and_return(mapbox_ok_body)
       end
 
-      it "returns 200 and Mapbox payload" do
+      it "returns 200 with Mapbox payload and distance_km (two decimal km) per route" do
         get "/directions", params: valid_params, headers: auth_headers
 
         expect(response).to have_http_status(:ok)
         expect(json_response["code"]).to eq("Ok")
         expect(json_response["routes"]).to be_an(Array)
+        expect(json_response["routes"].first["distance"]).to eq(1000)
+        expect(json_response["routes"].first["distance_km"]).to eq(1.0)
       end
     end
 

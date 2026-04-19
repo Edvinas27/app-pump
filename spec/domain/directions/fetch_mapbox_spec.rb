@@ -130,6 +130,39 @@ RSpec.describe Directions::FetchMapbox do
       end
     end
 
+    context "when optional via coordinates are provided" do
+      let(:params) do
+        base_params.merge(via_lat: "54.65", via_lng: "25.25")
+      end
+
+      it "requests a path with start;via;end" do
+        expect(Net::HTTP).to receive(:get) do |uri|
+          expect(uri.path).to eq("/directions/v5/mapbox/driving/25.2,54.6;25.25,54.65;25.3,54.7")
+          mapbox_ok_body
+        end
+
+        expect(result[:success]).to be true
+      end
+    end
+
+    context "when only one of via_lat and via_lng is present" do
+      let(:params) { base_params.merge(via_lat: "54.65", via_lng: "") }
+
+      it "returns failure" do
+        expect(result[:success]).to be false
+        expect(result[:errors]).to include("via_lat and via_lng must both be present when using a waypoint")
+      end
+    end
+
+    context "when via_lat is out of range" do
+      let(:params) { base_params.merge(via_lat: "91", via_lng: "25.25") }
+
+      it "returns failure" do
+        expect(result[:success]).to be false
+        expect(result[:errors]).to include("via_lat must be between -90 and 90")
+      end
+    end
+
     context "when Mapbox returns a non-Ok code" do
       let(:error_body) { { "code" => "NoRoute", "message" => "No route found" }.to_json }
 
