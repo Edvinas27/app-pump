@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "net/http"
+
 class Directions::FetchMapbox
   include Interactor::Initializer
 
