@@ -27,6 +27,48 @@ function getPerpOffset(start, end, factor) {
   return [midLat - dlng * factor, midLng + dlat * factor]
 }
 
+const API_BASE = "http://127.0.0.1:3000"
+
+function getAuthToken() {
+  return localStorage.getItem("token")
+}
+
+async function fetchMapboxDirections(params) {
+  const token = getAuthToken()
+  if (!token) {
+    throw new Error("AUTH_REQUIRED")
+  }
+
+  const q = new URLSearchParams({
+    start_lat: String(params.start_lat),
+    start_lng: String(params.start_lng),
+    end_lat: String(params.end_lat),
+    end_lng: String(params.end_lng),
+  })
+  if (params.via_lat != null && params.via_lng != null) {
+    q.set("via_lat", String(params.via_lat))
+    q.set("via_lng", String(params.via_lng))
+  }
+
+  const res = await fetch(`${API_BASE}/directions?${q}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    const msg = Array.isArray(data.errors) ? data.errors.join(", ") : (data.error || res.statusText)
+    throw new Error(msg || "Directions request failed")
+  }
+  if (data.code !== "Ok" || !data.routes?.[0]) {
+    throw new Error("No route returned")
+  }
+  return data
+}
+
+function formatDistanceKm(distanceKm) {
+  if (distanceKm == null || Number.isNaN(Number(distanceKm))) return "—"
+  return `${Number(distanceKm).toFixed(2)} km`
+}
+
 async function fetchRoutes(endCoord) {
   loading.value = true
   error.value   = null
@@ -34,35 +76,29 @@ async function fetchRoutes(endCoord) {
   const offsets = [0, 0.3, -0.3] 
 
   try {
-    const results = await Promise.all(
-      offsets.map(async (factor, i) => {
-        let coords
-        if (factor === 0) {
-          coords = [
-            `${startCoord[1]},${startCoord[0]}`,
-            `${endCoord[1]},${endCoord[0]}`,
-          ].join(";")
-        } else {
-          const wp = getPerpOffset(startCoord, endCoord, factor)
-          coords = [
-            `${startCoord[1]},${startCoord[0]}`,
-            `${wp[1]},${wp[0]}`,
-            `${endCoord[1]},${endCoord[0]}`,
-          ].join(";")
-        }
+    const baseParams = {
+      start_lat: startCoord[0],
+      start_lng: startCoord[1],
+      end_lat: endCoord[0],
+      end_lng: endCoord[1],
+    }
 
-        const url = `https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson`
-        const res  = await fetch(url)
-        const data = await res.json()
-        if (data.code !== "Ok") throw new Error("OSRM routing failed")
-        return data
+    const results = await Promise.all(
+      offsets.map(async (factor) => {
+        let params = { ...baseParams }
+        if (factor !== 0) {
+          const wp = getPerpOffset(startCoord, endCoord, factor)
+          params = { ...params, via_lat: wp[0], via_lng: wp[1] }
+        }
+        return fetchMapboxDirections(params)
       })
     )
 
-    results.forEach((osrmData, i) => {
-      routes.value[i].points   = osrmData.routes[0].geometry.coordinates.map(([lng, lat]) => [lat, lng])
-      routes.value[i].distance = (osrmData.routes[0].distance / 1000).toFixed(1) + " km"
-      routes.value[i].duration = Math.round(osrmData.routes[0].duration / 60) + " min"
+    results.forEach((mapboxData, i) => {
+      const leg = mapboxData.routes[0]
+      routes.value[i].points = leg.geometry.coordinates.map(([lng, lat]) => [lat, lng])
+      routes.value[i].distance = formatDistanceKm(leg.distance_km)
+      routes.value[i].duration = `${Math.round(leg.duration / 60)} min`
     })
 
     hasRoutes.value = true
@@ -79,7 +115,10 @@ async function fetchRoutes(endCoord) {
     mapRef.value.leafletObject.fitBounds(bounds, { padding: [40, 40] })
 
   } catch (e) {
-    error.value = "Could not load routes. Please try again."
+    error.value =
+      e.message === "AUTH_REQUIRED"
+        ? "Please sign in to calculate routes (JWT required)."
+        : "Could not load routes. Please try again."
     console.error(e)
   } finally {
     loading.value = false
