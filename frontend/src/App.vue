@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import MapView from "./components/MapView.vue"
 import SelectCar from "./components/SelectCar.vue"
+import FeedbackPanel from "./components/FeedbackPanel.vue"
 import AuthScreen from "./components/AuthScreen.vue"
 import { ref, onMounted } from "vue"
 import {
@@ -11,6 +12,7 @@ import {
 } from "./api/auth"
 
 const expanded = ref(false)
+const feedbackExpanded = ref(false)
 const bootstrapping = ref(true)
 const authenticated = ref(false)
 
@@ -61,8 +63,21 @@ function onAuthSuccess(payload: { token: string; user: AuthUser }) {
         {{ currentUser?.username || currentUser?.email || "Signed in" }}
       </div>
 
+      <div class="feedback-overlay" :class="{ expanded: feedbackExpanded }">
+        <div v-show="feedbackExpanded" class="feedback-panel-wrap">
+          <FeedbackPanel />
+        </div>
+        <button type="button" class="toggle fb-toggle" @click="feedbackExpanded = !feedbackExpanded">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+          </svg>
+          <span class="toggle-label">Feedback</span>
+          <span class="toggle-chevron">{{ feedbackExpanded ? "✕" : "↑" }}</span>
+        </button>
+      </div>
+
       <div class="overlay" :class="{ expanded }">
-        <button class="toggle" @click="expanded = !expanded">
+        <button type="button" class="toggle" @click="expanded = !expanded">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M5 17H3a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11a2 2 0 0 1 2 2v3" />
             <rect x="9" y="11" width="14" height="10" rx="2" />
@@ -162,6 +177,43 @@ body,
   white-space: nowrap;
   text-align: center;
   pointer-events: none;
+}
+
+.feedback-overlay {
+  position: absolute;
+  bottom: 16px;
+  right: 16px;
+  z-index: 1000;
+  width: 360px;
+  max-width: calc(100vw - 32px);
+  max-height: calc(100vh - 40px);
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: stretch;
+  gap: 6px;
+}
+
+.feedback-panel-wrap {
+  border-radius: 16px;
+  overflow: hidden;
+  overflow-y: auto;
+  max-height: calc(100vh - 120px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  scrollbar-width: none;
+}
+
+.feedback-panel-wrap::-webkit-scrollbar {
+  display: none;
+}
+
+.feedback-panel-wrap :deep(.fb-page) {
+  min-height: unset;
+}
+
+.feedback-panel-wrap :deep(.fb-panel) {
+  max-width: 100%;
+  border-radius: 16px;
 }
 
 .overlay {
