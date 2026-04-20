@@ -141,4 +141,28 @@ RSpec.describe CarsController, type: :request do
       expect(json_response['error']).to eq('brand_name, model and fuel_type_id are required')
     end
   end
+
+  describe 'GET /cars/emission' do
+    before do
+      create(:car, brand_name: 'Audi', model: 'A4', year: 2022, co2_emission: 120, fuel_type: fuel_type)
+    end
+
+    it 'returns correct CO2 emission for selected car' do
+      get '/cars/emission', params: {
+        brand_name: 'Audi',
+        model: 'A4',
+        year: 2022
+      }
+
+      expect(response).to have_http_status(:ok)
+      expect(json_response['co2_emission']).to eq(120)
+    end
+
+    it 'returns 422 if required params are missing' do
+      get '/cars/emission', params: { brand_name: 'Audi', model: 'A4' }
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(json_response['error']).to eq('brand_name, model and year are required')
+    end
+  end
 end

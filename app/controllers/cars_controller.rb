@@ -57,6 +57,22 @@ class CarsController < BaseController
     render json: years, status: :ok
   end
 
+  def emission
+    if params[:brand_name].blank? || params[:model].blank? || params[:year].blank?
+      return render json: { error: 'brand_name, model and year are required' },
+                    status: :unprocessable_content
+    end
+
+    car = Car.find_by(
+      brand_name: params[:brand_name], 
+      model: params[:model], 
+      year: params[:year].to_i)
+
+    return render json: { error: 'Car not found' }, status: :not_found unless car
+
+    render json: { co2_emission: car.co2_emission }, status: :ok
+  end
+
   private
 
   def car_params
