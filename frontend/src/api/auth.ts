@@ -1,4 +1,6 @@
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:3000"
+import { API_BASE_URL, apiFetch } from "./config"
+
+export { API_BASE_URL }
 
 export type AuthUser = {
   id: number
@@ -52,7 +54,7 @@ export function isTokenUsable(token: string | null): boolean {
  * POST /sessions — OpenAPI `LoginRequest`: { email, password }.
  */
 export async function loginSession(email: string, password: string): Promise<AuthSuccess> {
-  const res = await fetch(`${API_BASE_URL}/sessions`, {
+  const res = await apiFetch("/sessions", {
     method: "POST",
     headers: {
       Accept: "application/json",
@@ -79,7 +81,7 @@ export async function registerUser(
   username: string,
   password: string,
 ): Promise<AuthSuccess> {
-  const res = await fetch(`${API_BASE_URL}/users`, {
+  const res = await apiFetch("/users", {
     method: "POST",
     headers: {
       Accept: "application/json",

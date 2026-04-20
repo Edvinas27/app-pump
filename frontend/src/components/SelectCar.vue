@@ -1,18 +1,25 @@
 <script setup>
 import { ref, computed, watch } from "vue"
 import axios from "axios"
+import { API_BASE_URL, DEFAULT_HEADERS } from "../api/config"
 
 const emit = defineEmits(["active-car-change"])
 
 /* ---------------- API ---------------- */
 
-const api = axios.create({ baseURL: "http://127.0.0.1:3000" })
+const api = axios.create({
+  baseURL: API_BASE_URL,
+  headers: { ...DEFAULT_HEADERS },
+})
 
 const getToken = () => localStorage.getItem("token")
 
 const authApi = () => axios.create({
-  baseURL: "http://127.0.0.1:3000",
-  headers: { Authorization: `Bearer ${getToken()}` }
+  baseURL: API_BASE_URL,
+  headers: {
+    ...DEFAULT_HEADERS,
+    Authorization: `Bearer ${getToken()}`,
+  },
 })
 
 const fetchBrands       = ()                     => api.get("/cars/brands").then(r => r.data)
