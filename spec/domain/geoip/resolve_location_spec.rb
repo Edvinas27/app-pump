@@ -14,7 +14,7 @@ RSpec.describe Geoip::ResolveLocation do
       it "returns EMPTY and does not call MapboxClient" do
         expect_any_instance_of(Geoip::MapboxClient).not_to receive(:reverse_geocode)
 
-        result = described_class.for(ip: ip)
+        result = described_class.for(ip)
 
         expect(result).to eq(described_class::EMPTY)
       end
@@ -33,7 +33,7 @@ RSpec.describe Geoip::ResolveLocation do
       end
 
       it "merges coordinates with country and city" do
-        result = described_class.for(ip: ip)
+        result = described_class.for(ip)
 
         expect(result).to eq(
           country: "Lithuania",
@@ -56,7 +56,7 @@ RSpec.describe Geoip::ResolveLocation do
       end
 
       it "keeps coordinates and country/city as nil" do
-        result = described_class.for(ip: ip)
+        result = described_class.for(ip)
 
         expect(result).to eq(
           country: nil,

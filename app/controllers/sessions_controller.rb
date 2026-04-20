@@ -6,7 +6,7 @@ class SessionsController < BaseController
 
     if result[:success]
       ip = request.remote_ip
-      location = Geoip::ResolveLocation.for(ip: ip)
+      location = Geoip::ResolveLocation.for(ip)
 
       render json: {
         user: user_json(result[:user]),
