@@ -2,24 +2,38 @@
 import { LMap, LTileLayer, LPolyline, LMarker, LTooltip } from "@vue-leaflet/vue-leaflet"
 import "leaflet/dist/leaflet.css"
 import { ref, computed, watch, onMounted } from "vue"
-import { API_BASE_URL } from "../api/auth"
 import {
   decorateRoutesWithCo2Limit,
   filterVisibleRoutes,
   normalizeMaxCo2Kg,
 } from "../utils/routeFilter"
+import { apiFetch } from "../api/config"
 
 const props = defineProps({
   activeCarId: {
     type: Number,
     default: undefined,
   },
+  initialLocation: {
+    type: Object,
+    default: null,
+  },
 })
+
+const VILNIUS = [54.6872, 25.2797]
+
+function resolveInitialCenter() {
+  const loc = props.initialLocation
+  if (loc && typeof loc.latitude === "number" && typeof loc.longitude === "number") {
+    return [loc.latitude, loc.longitude]
+  }
+  return VILNIUS
+}
 
 const mapRef = ref(null)
 const zoom = ref(12)
-const center = ref([54.6872, 25.2797])
-const startCoord = ref([54.6872, 25.2797])
+const center = ref(resolveInitialCenter())
+const startCoord = ref(resolveInitialCenter())
 
 /** Next map click sets start or destination */
 const mapTarget = ref("end")
@@ -91,7 +105,7 @@ async function reverseGeocodeLabel(latlng) {
     if (!token) return fallback
     const [lat, lng] = latlng
     const q = new URLSearchParams({ lat: String(lat), lng: String(lng) })
-    const res = await fetch(`${API_BASE_URL}/geocode/reverse?${q}`, {
+    const res = await apiFetch(`/geocode/reverse?${q}`, {
       headers: { Authorization: `Bearer ${token}` },
     })
     const data = await res.json().catch(() => ({}))
@@ -141,7 +155,7 @@ async function fetchMapboxDirections(params) {
     q.set("via_lng", String(params.via_lng))
   }
 
-  const res = await fetch(`${API_BASE_URL}/directions?${q}`, {
+  const res = await apiFetch(`/directions?${q}`, {
     headers: { Authorization: `Bearer ${token}` },
   })
   const data = await res.json().catch(() => ({}))
@@ -196,7 +210,7 @@ async function fetchRouteEmissionsForAll() {
     const responseData = await Promise.all(
       routes.value.map(async (route) => {
         if (route.distanceKmRaw == null) return { id: route.id, total_emission_kg: null }
-        const res = await fetch(`${API_BASE_URL}/emissions/calculate`, {
+        const res = await apiFetch("/emissions/calculate", {
           method: "POST",
           headers: {
             Authorization: `Bearer ${token}`,
@@ -368,7 +382,7 @@ watch(
 
     emissionLoading.value = true
     try {
-      const res = await fetch(`${API_BASE_URL}/emissions/calculate`, {
+      const res = await apiFetch("/emissions/calculate", {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,

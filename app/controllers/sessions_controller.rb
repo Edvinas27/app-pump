@@ -5,9 +5,17 @@ class SessionsController < BaseController
     result = Users::Login.for(session_params[:email], session_params[:password])
 
     if result[:success]
+      ip = request.remote_ip
+      location = Geoip::ResolveLocation.for(ip)
+
       render json: {
         user: user_json(result[:user]),
-        token: JsonWebToken.encode(user_id: result[:user].id)
+        token: JsonWebToken.encode(user_id: result[:user].id),
+        country: location[:country],
+        city: location[:city],
+        latitude: location[:latitude],
+        longitude: location[:longitude],
+        login_ip: ip
       }, status: :ok
     else
       render json: { error: result[:error] }, status: :unauthorized

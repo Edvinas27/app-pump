@@ -1,4 +1,4 @@
-import { API_BASE_URL } from "./auth"
+import { apiFetch } from "./config"
 
 export type Feedback = {
   id: number
@@ -12,7 +12,7 @@ async function fetchWithFallback(path: string, init?: RequestInit): Promise<Resp
   const paths = [path, `/api${path}`, `/api/v1${path}`]
   let lastResponse: Response | null = null
   for (const candidate of paths) {
-    const res = await fetch(`${API_BASE_URL}${candidate}`, init)
+    const res = await apiFetch(candidate, init)
     if (res.status !== 404) return res
     lastResponse = res
   }

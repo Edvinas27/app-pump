@@ -18,6 +18,14 @@ class UserCarsController < BaseController
     render json: result, status: :ok
   end
 
+  def destroy
+    user_car = current_user.user_cars.find_by(car_id: params[:car_id])
+    return render json: { error: "Car assignment not found" }, status: :not_found unless user_car
+
+    user_car.destroy!
+    head :no_content
+  end
+
   private
 
   def user_car_params

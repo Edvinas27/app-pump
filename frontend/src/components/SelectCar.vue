@@ -1,14 +1,17 @@
 <script setup>
 import { ref, computed, watch } from "vue"
 import axios from "axios"
-import { API_BASE_URL } from "../api/auth"
 import { fetchUserCars, assignUserCar, deleteUserCar } from "../api/userCars"
+import { API_BASE_URL, DEFAULT_HEADERS } from "../api/config"
 
 const emit = defineEmits(["active-car-change"])
 
 /* ---------------- API ---------------- */
 
-const api = axios.create({ baseURL: API_BASE_URL })
+const api = axios.create({
+  baseURL: API_BASE_URL,
+  headers: { ...DEFAULT_HEADERS },
+})
 
 const fetchBrands       = ()                     => api.get("/cars/brands").then(r => r.data)
 const fetchModels       = (brand)                => api.get("/cars/models",     { params: { brand_name: brand } }).then(r => r.data)
@@ -342,7 +345,13 @@ async function saveCustomCar() {
 /* ---------------- DELETE ---------------- */
 
 async function deleteCar(id) {
-  try { await deleteUserCar(id) } catch { /* best effort */ }
+  try {
+    await deleteUserCar(id)
+  } catch (e) {
+    const msg = e.response?.data?.error
+    error.value = typeof msg === "string" ? msg : "Could not remove car."
+    return
+  }
   cars.value = cars.value.filter(c => c.id !== id)
   if (activeId.value === id) activeId.value = cars.value[0]?.id || null
 }

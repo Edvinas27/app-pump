@@ -1,12 +1,15 @@
 import axios from "axios"
-import { API_BASE_URL } from "./auth"
+import { API_BASE_URL, DEFAULT_HEADERS } from "./config"
 
 const USER_CARS_PATHS = ["/me/cars", "/api/me/cars", "/api/v1/me/cars"]
 
 function authApi() {
   return axios.create({
     baseURL: API_BASE_URL,
-    headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+    headers: {
+      ...DEFAULT_HEADERS,
+      Authorization: `Bearer ${localStorage.getItem("token")}`,
+    },
   })
 }
 

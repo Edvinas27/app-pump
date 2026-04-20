@@ -5,10 +5,12 @@ import FeedbackPanel from "./components/FeedbackPanel.vue"
 import AuthScreen from "./components/AuthScreen.vue"
 import { ref, onMounted } from "vue"
 import {
-  readStoredUser,
   isTokenUsable,
   clearStoredAuth,
+  LOGIN_LOCATION_KEY,
   type AuthUser,
+  type AuthSuccess,
+  type LoginLocation,
 } from "./api/auth"
 
 const expanded = ref(false)
@@ -17,33 +19,36 @@ const bootstrapping = ref(true)
 const authenticated = ref(false)
 
 const currentUser = ref<AuthUser | null>(null)
+const loginLocation = ref<LoginLocation | null>(null)
 const carsKey = ref(0)
 const activeCarId = ref<number | undefined>(undefined)
 
 onMounted(() => {
-  const token = localStorage.getItem("token")
-  if (token && isTokenUsable(token)) {
-    authenticated.value = true
-    currentUser.value = readStoredUser()
-  } else {
-    clearStoredAuth()
-    authenticated.value = false
-    currentUser.value = null
-  }
+  clearStoredAuth()
+  authenticated.value = false
+  currentUser.value = null
+  loginLocation.value = null
   bootstrapping.value = false
 })
 
-function onAuthSuccess(payload: { token: string; user: AuthUser }) {
+function onAuthSuccess(payload: AuthSuccess) {
   if (!isTokenUsable(payload.token)) {
     clearStoredAuth()
     authenticated.value = false
     currentUser.value = null
+    loginLocation.value = null
     return
   }
   localStorage.setItem("token", payload.token)
   localStorage.setItem("user", JSON.stringify(payload.user))
+  if (payload.location) {
+    localStorage.setItem(LOGIN_LOCATION_KEY, JSON.stringify(payload.location))
+  } else {
+    localStorage.removeItem(LOGIN_LOCATION_KEY)
+  }
   authenticated.value = true
   currentUser.value = payload.user
+  loginLocation.value = payload.location
   carsKey.value += 1
 }
 
@@ -58,7 +63,7 @@ function onAuthSuccess(payload: { token: string; user: AuthUser }) {
     <AuthScreen v-else-if="!authenticated" @success="onAuthSuccess" />
 
     <template v-else>
-      <MapView :active-car-id="activeCarId" />
+      <MapView :active-car-id="activeCarId" :initial-location="loginLocation" />
       <div class="user-top-name" :title="currentUser?.email ?? ''">
         {{ currentUser?.username || currentUser?.email || "Signed in" }}
       </div>
@@ -109,6 +114,7 @@ body,
 #app {
   height: 100%;
   overflow: hidden;
+  overflow-x: clip;
 }
 </style>
 
@@ -118,7 +124,9 @@ body,
 .app {
   position: relative;
   height: 100vh;
-  width: 100vw;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: clip;
 }
 
 .boot {

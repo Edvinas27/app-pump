@@ -6,3 +6,4 @@ spec/examples.txt
 frontend/node_modules/
 frontend/.vscode/
 coverage/
+.env

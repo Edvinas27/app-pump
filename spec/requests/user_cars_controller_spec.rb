@@ -54,4 +54,30 @@ RSpec.describe UserCarsController, type: :request do
       expect(json_response["error"]).to eq("Unauthorized")
     end
   end
+
+  describe "DELETE /me/cars/:car_id" do
+    it "removes assigned car from user" do
+      create(:user_car, user: user, car: car)
+
+      expect do
+        delete "/me/cars/#{car.id}", headers: headers
+      end.to change(UserCar, :count).by(-1)
+
+      expect(response).to have_http_status(:no_content)
+    end
+
+    it "returns 404 when assignment does not exist" do
+      delete "/me/cars/#{car.id}", headers: headers
+
+      expect(response).to have_http_status(:not_found)
+      expect(json_response["error"]).to eq("Car assignment not found")
+    end
+
+    it "returns 401 when auth header is missing" do
+      delete "/me/cars/#{car.id}"
+
+      expect(response).to have_http_status(:unauthorized)
+      expect(json_response["error"]).to eq("Unauthorized")
+    end
+  end
 end
