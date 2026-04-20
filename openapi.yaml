@@ -14,6 +14,7 @@ tags:
   - name: UserCars
   - name: Feedbacks
   - name: Directions
+  - name: Geocoding
   - name: Emissions
 paths:
   /live:
@@ -369,7 +370,9 @@ paths:
       tags: [Directions]
       summary: Get driving route between two points
       description: |
-        Returns Mapbox Directions API v5 JSON for the given coordinates.
+        Returns Mapbox Directions API v5 JSON for the given coordinates, with each route
+        augmented by `distance_km` (distance in kilometres, two decimal places) derived from
+        Mapbox `distance` in metres.
         **Only authenticated users** may call this endpoint (same JWT as `/me/cars`).
       security:
         - bearerAuth: []
@@ -402,6 +405,20 @@ paths:
             type: number
             format: float
           description: End longitude (-180..180)
+        - name: via_lat
+          in: query
+          required: false
+          schema:
+            type: number
+            format: float
+          description: Optional waypoint latitude (-90..90); use with `via_lng`
+        - name: via_lng
+          in: query
+          required: false
+          schema:
+            type: number
+            format: float
+          description: Optional waypoint longitude (-180..180); use with `via_lat`
       responses:
         "200":
           description: Mapbox Directions success payload (`code` is typically `Ok`)
@@ -419,6 +436,50 @@ paths:
                 error: Unauthorized
         "422":
           description: Invalid or missing coordinates, Mapbox error, or missing Mapbox configuration
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DirectionsErrorResponse"
+
+  /geocode/reverse:
+    get:
+      tags: [Geocoding]
+      summary: Reverse geocode coordinates to a place label
+      description: |
+        Uses Mapbox Geocoding API (same `MAPBOX_ACCESS_TOKEN` as directions). Returns a human-readable
+        `place_name` as `label`, or `null` if no result. Requires JWT.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: lat
+          in: query
+          required: true
+          schema:
+            type: number
+            format: float
+          description: Latitude (-90..90)
+        - name: lng
+          in: query
+          required: true
+          schema:
+            type: number
+            format: float
+          description: Longitude (-180..180)
+      responses:
+        "200":
+          description: Geocoding result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReverseGeocodeResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: Invalid or missing parameters or Mapbox error
           content:
             application/json:
               schema:
@@ -660,6 +721,15 @@ components:
           type: number
           format: float
 
+    ReverseGeocodeResponse:
+      type: object
+      required: [label]
+      properties:
+        label:
+          type: string
+          nullable: true
+          description: Mapbox `place_name` for the nearest feature, or null if none.
+
     ErrorResponse:
       type: object
       required: [error]
@@ -678,7 +748,10 @@ components:
 
     MapboxDirectionsResponse:
       type: object
-      description: Subset of Mapbox Directions API v5 JSON; additional fields may be present.
+      description: |
+        Mapbox Directions API v5 JSON. Each element of `routes` includes Mapbox fields
+        (e.g. `distance` in metres, `duration` in seconds, `geometry`) plus server-added
+        `distance_km` (kilometres, rounded to two decimals).
       properties:
         code:
           type: string
@@ -687,6 +760,15 @@ components:
           type: array
           items:
             type: object
+            properties:
+              distance:
+                type: number
+                description: Route length in metres (Mapbox)
+              distance_km:
+                type: number
+                description: Same length in kilometres, rounded to two decimal places
+              duration:
+                type: number
             additionalProperties: true
       additionalProperties: true
 

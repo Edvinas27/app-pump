@@ -25,6 +25,7 @@ Rails.application.routes.draw do
   get "feedbacks", to: "feedbacks#get"
 
   get "directions", to: "directions#show"
+  get "geocode/reverse", to: "geocoding#reverse"
   post "emissions/calculate", to: "emissions#calculate"
 
   get "cars/emission", to: "cars#emission"
