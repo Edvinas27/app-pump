@@ -593,6 +593,33 @@ components:
         token:
           type: string
           description: JWT token to be sent as `Authorization: Bearer <token>`.
+        country:
+          type: string
+          nullable: true
+          description: Country resolved from the client IP via GeoIP; `null` if unavailable.
+          example: Lithuania
+        city:
+          type: string
+          nullable: true
+          description: City resolved from the client IP via GeoIP; `null` if unavailable.
+          example: Vilnius
+        latitude:
+          type: number
+          format: double
+          nullable: true
+          description: Latitude resolved from the client IP; `null` if unavailable.
+          example: 54.6872
+        longitude:
+          type: number
+          format: double
+          nullable: true
+          description: Longitude resolved from the client IP; `null` if unavailable.
+          example: 25.2797
+        login_ip:
+          type: string
+          nullable: true
+          description: The public IP the server observed for this login request.
+          example: 8.8.8.8
 
     FuelType:
       type: object

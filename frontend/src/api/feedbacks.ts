@@ -1,4 +1,4 @@
-import { API_BASE_URL } from "./auth"
+import { apiFetch } from "./config"
 
 export type Feedback = {
   id: number
@@ -10,7 +10,7 @@ export type Feedback = {
 
 /** GET /feedbacks — public in current API. */
 export async function fetchFeedbacks(): Promise<Feedback[]> {
-  const res = await fetch(`${API_BASE_URL}/feedbacks`, {
+  const res = await apiFetch("/feedbacks", {
     headers: { Accept: "application/json" },
   })
   const data = (await res.json().catch(() => null)) as unknown
@@ -22,7 +22,7 @@ export async function fetchFeedbacks(): Promise<Feedback[]> {
 
 /** POST /feedbacks — body matches OpenAPI FeedbackCreateRequest. */
 export async function createFeedback(comment: string, rating: number): Promise<Feedback> {
-  const res = await fetch(`${API_BASE_URL}/feedbacks`, {
+  const res = await apiFetch("/feedbacks", {
     method: "POST",
     headers: {
       Accept: "application/json",
