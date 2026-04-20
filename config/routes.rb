@@ -15,6 +15,7 @@ Rails.application.routes.draw do
   get "cars/brands", to: "cars#brands"
   get "cars/models", to: "cars#models"
   get "cars/fuel_types", to: "cars#fuel_types"
+  get "cars/emission", to: "cars#emission"
   get "cars/years", to: "cars#years"
   post "feedbacks", to: "feedbacks#create"
   get "feedbacks", to: "feedbacks#get"
