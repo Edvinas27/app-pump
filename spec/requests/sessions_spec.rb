@@ -26,17 +26,19 @@ RSpec.describe "Sessions", type: :request do
     context "when client location resolves from IP" do
       before do
         allow(Geoip::ResolveLocation).to receive(:for).with(ip: "8.8.8.8").and_return(
-          { country: "United States", city: "New York" }
+          { country: "United States", city: "New York", latitude: 40.73, longitude: -73.99 }
         )
         allow_any_instance_of(ActionDispatch::Request).to receive(:remote_ip).and_return("8.8.8.8")
       end
 
-      it "returns country and city without persisting to DB" do
+      it "returns country, city and coordinates without persisting to DB" do
         post "/sessions", params: { email: "login@example.com", password: password }
 
         expect(response).to have_http_status(:ok)
         expect(json_response["country"]).to eq("United States")
         expect(json_response["city"]).to eq("New York")
+        expect(json_response["latitude"]).to eq(40.73)
+        expect(json_response["longitude"]).to eq(-73.99)
         expect(json_response["login_ip"]).to eq("8.8.8.8")
         expect(json_response["token"]).to be_present
       end
@@ -45,7 +47,7 @@ RSpec.describe "Sessions", type: :request do
     context "when client location cannot be resolved" do
       before do
         allow(Geoip::ResolveLocation).to receive(:for).with(ip: "203.0.113.1").and_return(
-          { country: nil, city: nil }
+          { country: nil, city: nil, latitude: nil, longitude: nil }
         )
         allow_any_instance_of(ActionDispatch::Request).to receive(:remote_ip).and_return("203.0.113.1")
       end
@@ -56,6 +58,8 @@ RSpec.describe "Sessions", type: :request do
         expect(response).to have_http_status(:ok)
         expect(json_response["country"]).to be_nil
         expect(json_response["city"]).to be_nil
+        expect(json_response["latitude"]).to be_nil
+        expect(json_response["longitude"]).to be_nil
         expect(json_response["login_ip"]).to eq("203.0.113.1")
         expect(json_response["token"]).to be_present
       end

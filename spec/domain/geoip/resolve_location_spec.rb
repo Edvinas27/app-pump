@@ -12,9 +12,14 @@ RSpec.describe Geoip::ResolveLocation do
         ).and_return({ country: "United States", city: "New York" })
       end
 
-      it "returns country and city" do
+      it "returns country, city, and the resolved coordinates" do
         result = described_class.for(ip: "8.8.8.8")
-        expect(result).to eq({ country: "United States", city: "New York" })
+        expect(result).to eq(
+          country: "United States",
+          city: "New York",
+          latitude: 40.73,
+          longitude: -73.99
+        )
       end
     end
 
@@ -26,7 +31,7 @@ RSpec.describe Geoip::ResolveLocation do
       it "returns nils without calling Mapbox" do
         expect_any_instance_of(Geoip::MapboxClient).not_to receive(:reverse_geocode)
         result = described_class.for(ip: "192.168.1.1")
-        expect(result).to eq({ country: nil, city: nil })
+        expect(result).to eq(country: nil, city: nil, latitude: nil, longitude: nil)
       end
     end
 
@@ -40,9 +45,9 @@ RSpec.describe Geoip::ResolveLocation do
         )
       end
 
-      it "returns nils" do
+      it "returns nil country/city but keeps the resolved coordinates" do
         result = described_class.for(ip: "1.2.3.4")
-        expect(result).to eq({ country: nil, city: nil })
+        expect(result).to eq(country: nil, city: nil, latitude: 0.0, longitude: 0.0)
       end
     end
   end
