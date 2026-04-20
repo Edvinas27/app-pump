@@ -5,7 +5,6 @@ import FeedbackPanel from "./components/FeedbackPanel.vue"
 import AuthScreen from "./components/AuthScreen.vue"
 import { ref, onMounted } from "vue"
 import {
-  readStoredUser,
   isTokenUsable,
   clearStoredAuth,
   type AuthUser,
@@ -21,15 +20,9 @@ const carsKey = ref(0)
 const activeCarId = ref<number | undefined>(undefined)
 
 onMounted(() => {
-  const token = localStorage.getItem("token")
-  if (token && isTokenUsable(token)) {
-    authenticated.value = true
-    currentUser.value = readStoredUser()
-  } else {
-    clearStoredAuth()
-    authenticated.value = false
-    currentUser.value = null
-  }
+  clearStoredAuth()
+  authenticated.value = false
+  currentUser.value = null
   bootstrapping.value = false
 })
 
@@ -109,6 +102,7 @@ body,
 #app {
   height: 100%;
   overflow: hidden;
+  overflow-x: clip;
 }
 </style>
 
@@ -118,7 +112,9 @@ body,
 .app {
   position: relative;
   height: 100vh;
-  width: 100vw;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: clip;
 }
 
 .boot {
