@@ -8,9 +8,20 @@ export type Feedback = {
   updated_at: string
 }
 
+async function fetchWithFallback(path: string, init?: RequestInit): Promise<Response> {
+  const paths = [path, `/api${path}`, `/api/v1${path}`]
+  let lastResponse: Response | null = null
+  for (const candidate of paths) {
+    const res = await fetch(`${API_BASE_URL}${candidate}`, init)
+    if (res.status !== 404) return res
+    lastResponse = res
+  }
+  return lastResponse as Response
+}
+
 /** GET /feedbacks — public in current API. */
 export async function fetchFeedbacks(): Promise<Feedback[]> {
-  const res = await fetch(`${API_BASE_URL}/feedbacks`, {
+  const res = await fetchWithFallback("/feedbacks", {
     headers: { Accept: "application/json" },
   })
   const data = (await res.json().catch(() => null)) as unknown
@@ -22,7 +33,7 @@ export async function fetchFeedbacks(): Promise<Feedback[]> {
 
 /** POST /feedbacks — body matches OpenAPI FeedbackCreateRequest. */
 export async function createFeedback(comment: string, rating: number): Promise<Feedback> {
-  const res = await fetch(`${API_BASE_URL}/feedbacks`, {
+  const res = await fetchWithFallback("/feedbacks", {
     method: "POST",
     headers: {
       Accept: "application/json",

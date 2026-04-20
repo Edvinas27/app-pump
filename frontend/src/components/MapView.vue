@@ -3,6 +3,11 @@ import { LMap, LTileLayer, LPolyline, LMarker, LTooltip } from "@vue-leaflet/vue
 import "leaflet/dist/leaflet.css"
 import { ref, computed, watch, onMounted } from "vue"
 import { API_BASE_URL } from "../api/auth"
+import {
+  decorateRoutesWithCo2Limit,
+  filterVisibleRoutes,
+  normalizeMaxCo2Kg,
+} from "../utils/routeFilter"
 
 const props = defineProps({
   activeCarId: {
@@ -20,14 +25,43 @@ const startCoord = ref([54.6872, 25.2797])
 const mapTarget = ref("end")
 
 const routes = ref([
-  { id: 1, name: "Route A", from: "", to: "", distance: null, duration: null, type: "Alternate", points: [], distanceKmRaw: null },
-  { id: 2, name: "Route B", from: "", to: "", distance: null, duration: null, type: "Alternate", points: [], distanceKmRaw: null },
-  { id: 3, name: "Route C", from: "", to: "", distance: null, duration: null, type: "Alternate", points: [], distanceKmRaw: null },
+  {
+    id: 1,
+    name: "Route A",
+    from: "",
+    to: "",
+    distance: null,
+    duration: null,
+    type: "Alternate",
+    points: [],
+    distanceKmRaw: null,
+    tripCo2Kg: null,
+  },
+  {
+    id: 2,
+    name: "Route B",
+    from: "",
+    to: "",
+    distance: null,
+    duration: null,
+    type: "Alternate",
+    points: [],
+    distanceKmRaw: null,
+    tripCo2Kg: null,
+  },
+  {
+    id: 3,
+    name: "Route C",
+    from: "",
+    to: "",
+    distance: null,
+    duration: null,
+    type: "Alternate",
+    points: [],
+    distanceKmRaw: null,
+    tripCo2Kg: null,
+  },
 ])
-
-const maxCo2Kg = ref(null)
-const hideExceeding = ref(false)
-const avoidLez = ref(false)
 
 const loading = ref(false)
 const error = ref(null)
@@ -37,6 +71,11 @@ const hasRoutes = ref(false)
 const emissionLoading = ref(false)
 const emissionError = ref("")
 const emissionData = ref(null)
+const routeEmissionLoading = ref(false)
+const routeEmissionError = ref("")
+
+const maxCo2Kg = ref("")
+const overLimitAction = ref("mark")
 
 const CAR_REQUIRED_MSG =
   "Select a car in My cars (top right) before planning or choosing a route."
@@ -87,20 +126,16 @@ function getAuthToken() {
 
 async function fetchMapboxDirections(params) {
   const token = getAuthToken()
-  if (!token) throw new Error("AUTH_REQUIRED")
+  if (!token) {
+    throw new Error("AUTH_REQUIRED")
+  }
 
   const q = new URLSearchParams({
     start_lat: String(params.start_lat),
     start_lng: String(params.start_lng),
     end_lat: String(params.end_lat),
     end_lng: String(params.end_lng),
-
-    car_id: String(props.activeCarId),
-    max_co2_kg: maxCo2Kg.value ?? "",
-    avoid_lez: String(avoidLez.value),
-    hide_exceeding: String(hideExceeding.value),
   })
-
   if (params.via_lat != null && params.via_lng != null) {
     q.set("via_lat", String(params.via_lat))
     q.set("via_lng", String(params.via_lng))
@@ -109,12 +144,14 @@ async function fetchMapboxDirections(params) {
   const res = await fetch(`${API_BASE_URL}/directions?${q}`, {
     headers: { Authorization: `Bearer ${token}` },
   })
-
   const data = await res.json().catch(() => ({}))
   if (!res.ok) {
-    throw new Error(data.error || "Directions failed")
+    const msg = Array.isArray(data.errors) ? data.errors.join(", ") : (data.error || res.statusText)
+    throw new Error(msg || "Directions request failed")
   }
-
+  if (data.code !== "Ok" || !data.routes?.[0]) {
+    throw new Error("No route returned")
+  }
   return data
 }
 
@@ -123,10 +160,71 @@ function formatDistanceKm(distanceKm) {
   return `${Number(distanceKm).toFixed(2)} km`
 }
 
+function formatCo2Kg(value) {
+  if (value == null || Number.isNaN(Number(value))) return "—"
+  return `${Number(value).toFixed(3)} kg`
+}
+
+const normalizedMaxCo2Kg = computed(() => normalizeMaxCo2Kg(maxCo2Kg.value))
+
+const routesWithFilterState = computed(() => {
+  return decorateRoutesWithCo2Limit(routes.value, normalizedMaxCo2Kg.value)
+})
+
+const visibleRoutes = computed(() => filterVisibleRoutes(routesWithFilterState.value, overLimitAction.value))
+
 function requireCarOrExplain() {
   if (props.activeCarId != null) return true
   error.value = CAR_REQUIRED_MSG
   return false
+}
+
+async function fetchRouteEmissionsForAll() {
+  routeEmissionError.value = ""
+  if (!hasRoutes.value || props.activeCarId == null) {
+    routes.value.forEach((route) => {
+      route.tripCo2Kg = null
+    })
+    return
+  }
+
+  const token = getAuthToken()
+  if (!token) return
+
+  routeEmissionLoading.value = true
+  try {
+    const responseData = await Promise.all(
+      routes.value.map(async (route) => {
+        if (route.distanceKmRaw == null) return { id: route.id, total_emission_kg: null }
+        const res = await fetch(`${API_BASE_URL}/emissions/calculate`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            car_id: props.activeCarId,
+            distance_km: route.distanceKmRaw,
+          }),
+        })
+        const data = await res.json().catch(() => ({}))
+        if (!res.ok) {
+          throw new Error(typeof data.error === "string" ? data.error : "Route emissions request failed")
+        }
+        return { id: route.id, total_emission_kg: Number(data.total_emission_kg) }
+      }),
+    )
+    const byId = new Map(responseData.map((item) => [item.id, item.total_emission_kg]))
+    routes.value.forEach((route) => {
+      const value = byId.get(route.id)
+      route.tripCo2Kg = typeof value === "number" && !Number.isNaN(value) ? value : null
+    })
+  } catch (e) {
+    routeEmissionError.value = e instanceof Error ? e.message : "Could not load route emissions."
+  } finally {
+    routeEmissionLoading.value = false
+  }
 }
 
 async function fetchRoutes(endCoord) {
@@ -166,19 +264,16 @@ async function fetchRoutes(endCoord) {
     endPlaceLabel.value = toLabel
 
     results.forEach((mapboxData, i) => {
-    const routeData = mapboxData.routes[0]
-
-    const km = routeData.distance_km != null ? Number(routeData.distance_km) : null
-
-    routes.value[i].points = routeData.geometry.coordinates.map(([lng, lat]) => [lat, lng])
-    routes.value[i].distance = formatDistanceKm(km)
-    routes.value[i].duration = `${Math.round(routeData.duration / 60)} min`
-    routes.value[i].distanceKmRaw = km
-
-    routes.value[i].co2Kg = routeData.co2_kg
-    routes.value[i].exceedsCo2 = routeData.exceeds_co2
-    routes.value[i].passesLez = routeData.passes_lez
-  })
+      const leg = mapboxData.routes[0]
+      const km = leg.distance_km != null ? Number(leg.distance_km) : null
+      routes.value[i].points = leg.geometry.coordinates.map(([lng, lat]) => [lat, lng])
+      routes.value[i].distance = formatDistanceKm(km)
+      routes.value[i].duration = `${Math.round(leg.duration / 60)} min`
+      routes.value[i].from = fromLabel
+      routes.value[i].to = toLabel
+      routes.value[i].distanceKmRaw = km != null && !Number.isNaN(km) ? km : null
+      routes.value[i].tripCo2Kg = null
+    })
 
     hasRoutes.value = true
     selectedRouteId.value = null
@@ -195,6 +290,7 @@ async function fetchRoutes(endCoord) {
       [Math.max(...lats), Math.max(...lngs)],
     ]
     mapRef.value.leafletObject.fitBounds(bounds, { padding: [40, 40] })
+    fetchRouteEmissionsForAll()
   } catch (e) {
     error.value =
       e.message === "AUTH_REQUIRED"
@@ -236,8 +332,15 @@ const selectedRouteId = ref(null)
 const selectedRoute = computed(() => routes.value.find((r) => r.id === selectedRouteId.value) || null)
 
 function getRouteColor(route, isActive) {
-  const idx = routes.value.indexOf(route)
-  return isActive ? routeColors.active[idx] : routeColors.default[idx]
+  const idx = routes.value.findIndex((r) => r.id === route.id)
+  const safeIdx = idx >= 0 ? idx : 0
+  return isActive ? routeColors.active[safeIdx] : routeColors.default[safeIdx]
+}
+
+function getRouteAccent(route) {
+  const idx = routes.value.findIndex((r) => r.id === route.id)
+  const safeIdx = idx >= 0 ? idx : 0
+  return routeColors.active[safeIdx]
 }
 
 function canSelectRoute() {
@@ -292,25 +395,38 @@ watch(
 )
 
 watch(
+  () => [hasRoutes.value, props.activeCarId],
+  () => {
+    if (hasRoutes.value && props.activeCarId != null) fetchRouteEmissionsForAll()
+  },
+)
+
+watch(
+  [visibleRoutes, () => selectedRouteId.value],
+  ([nextVisible]) => {
+    if (!nextVisible.find((route) => route.id === selectedRouteId.value)) {
+      selectedRouteId.value = null
+      emissionData.value = null
+      emissionError.value = ""
+    }
+  },
+)
+
+watch(
   () => props.activeCarId,
   (id) => {
     if (id == null) {
       selectedRouteId.value = null
       emissionData.value = null
       emissionError.value = ""
+      routes.value.forEach((route) => {
+        route.tripCo2Kg = null
+      })
+      routeEmissionError.value = ""
     } else if (error.value === CAR_REQUIRED_MSG) {
       error.value = null
     }
   },
-)
-
-watch(
-  [maxCo2Kg, avoidLez, hideExceeding],
-  () => {
-    if (clickedPoint.value) {
-      fetchRoutes(clickedPoint.value)
-    }
-  }
 )
 </script>
 
@@ -357,26 +473,31 @@ watch(
             </div>
           </div>
 
-          <div class="filter-box">
-            <p class="sidebar-label">Filters</p>
-
-            <label class="filter-item">
-              Max CO₂ (kg)
-              <input type="number" v-model="maxCo2Kg" placeholder="e.g. 5" />
-            </label>
-
-            <label class="filter-item">
-              <input type="checkbox" v-model="hideExceeding" />
-              Hide exceeding routes
-            </label>
-
-            <label class="filter-item">
-              <input type="checkbox" v-model="avoidLez" />
-              Avoid low emission zones
-            </label>
-          </div>
-          
           <p class="sidebar-label">Available Routes</p>
+          <div v-if="hasRoutes" class="filters-box">
+            <p class="filters-title">CO₂ filter</p>
+            <label class="filter-label">
+              Max trip CO₂ (kg)
+              <input
+                v-model="maxCo2Kg"
+                type="number"
+                min="0"
+                step="0.001"
+                class="filter-input"
+                placeholder="No limit"
+              />
+            </label>
+            <div class="filter-mode">
+              <label>
+                <input v-model="overLimitAction" type="radio" value="mark" />
+                Mark routes over limit
+              </label>
+              <label>
+                <input v-model="overLimitAction" type="radio" value="hide" />
+                Hide routes over limit
+              </label>
+            </div>
+          </div>
 
           <div v-if="!activeCarId" class="state-box car-hint">
             <span class="state-icon">🚗</span>
@@ -414,16 +535,15 @@ watch(
 
           <template v-else>
             <div
-              v-for="(route, idx) in routes"
-              v-if="!hideExceeding || !route.exceedsCo2"
+              v-for="route in visibleRoutes"
               :key="route.id"
               class="route-card"
               :class="{
                 active: selectedRouteId === route.id,
                 disabled: !canSelectRoute(),
-                'route-bad': route.exceedsCo2 || route.passesLez
+                overlimit: route.exceedsCo2Limit && overLimitAction === 'mark',
               }"
-              :style="{ '--accent': routeColors.active[idx] }"
+              :style="{ '--accent': getRouteAccent(route) }"
               @click="selectRoute(route)"
             >
               <div class="route-card-top">
@@ -433,11 +553,22 @@ watch(
               <div class="route-card-stats">
                 <span>🛣 {{ route.distance ?? "—" }}</span>
                 <span>⏱ {{ route.duration ?? "—" }}</span>
-
-                <span v-if="route.co2Kg != null">
-                  🌱 {{ route.co2Kg.toFixed(2) }} kg
+              </div>
+              <div class="route-card-stats">
+                <span>🌿 {{ formatCo2Kg(route.tripCo2Kg) }}</span>
+                <span v-if="route.exceedsCo2Limit && overLimitAction === 'mark'" class="overlimit-tag">
+                  Above CO₂ limit
                 </span>
               </div>
+            </div>
+            <div v-if="routeEmissionLoading" class="emission-muted">Refreshing route CO₂ values…</div>
+            <div v-if="routeEmissionError" class="emission-err">{{ routeEmissionError }}</div>
+            <div
+              v-if="overLimitAction === 'hide' && normalizedMaxCo2Kg != null && visibleRoutes.length === 0"
+              class="state-box"
+            >
+              <span class="state-icon">🧪</span>
+              <p>No routes match current CO₂ limit. Increase limit or switch filter mode.</p>
             </div>
 
             <transition name="fade">
@@ -501,7 +632,7 @@ watch(
 
             <template v-if="hasRoutes && !loading">
               <l-polyline
-                v-for="(route, idx) in routes"
+                v-for="(route, idx) in visibleRoutes"
                 :key="route.id"
                 :bubbling-mouse-events="false"
                 :lat-lngs="route.points"
@@ -550,21 +681,23 @@ watch(
 
 <style scoped>
 .map-wrapper {
-  min-height: 100vh;
+  min-height: 100%;
+  height: 100%;
   background: linear-gradient(135deg, #e8edf5 0%, #dce3ee 100%);
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 32px;
+  padding: 0;
   box-sizing: border-box;
   font-family: "Inter", sans-serif;
 }
 
 .map-card {
   width: 100%;
-  max-width: 1100px;
+  max-width: 100%;
+  height: 100%;
   background: #ffffff;
-  border-radius: 20px;
+  border-radius: 0;
   box-shadow:
     0 2px 4px rgba(0, 0, 0, 0.04),
     0 8px 24px rgba(0, 0, 0, 0.1);
@@ -595,7 +728,7 @@ watch(
 
 .map-content {
   display: flex;
-  height: 560px;
+  height: calc(100% - 49px);
 }
 
 .sidebar {
@@ -701,6 +834,10 @@ watch(
   background: color-mix(in srgb, var(--accent) 8%, white);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 15%, transparent);
 }
+.route-card.overlimit {
+  border-color: #f59e0b;
+  background: #fffbeb;
+}
 .route-card.disabled {
   cursor: not-allowed;
   opacity: 0.45;
@@ -730,6 +867,46 @@ watch(
   gap: 12px;
   font-size: 12px;
   color: #64748b;
+}
+.overlimit-tag {
+  font-size: 10px;
+  font-weight: 700;
+  color: #b45309;
+}
+
+.filters-box {
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.filters-title {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 700;
+  color: #334155;
+}
+.filter-label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+  color: #64748b;
+}
+.filter-input {
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 6px 8px;
+  font-size: 12px;
+}
+.filter-mode {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 11px;
+  color: #334155;
 }
 
 .route-info-box {
@@ -900,24 +1077,6 @@ watch(
   width: 36px;
   height: 36px;
   border-width: 3.5px;
-}
-
-.filter-box {
-  background: #f8fafc;
-  padding: 10px;
-  border-radius: 10px;
-}
-
-.filter-item {
-  display: flex;
-  flex-direction: column;
-  font-size: 12px;
-  margin-bottom: 6px;
-}
-
-.route-bad {
-  border-color: #f59e0b;
-  background: #fffbeb;
 }
 
 .fade-enter-active,
