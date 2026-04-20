@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { ref, watch, computed } from "vue"
-import { loginSession, registerUser, type AuthUser } from "../api/auth"
+import { loginSession, registerUser, type AuthSuccess } from "../api/auth"
 
 const emit = defineEmits<{
-  success: [payload: { token: string; user: AuthUser }]
+  success: [payload: AuthSuccess]
 }>()
 
 type Tab = "login" | "register"

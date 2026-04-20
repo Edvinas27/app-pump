@@ -1,4 +1,6 @@
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:3000"
+import { API_BASE_URL, apiFetch } from "./http"
+
+export { API_BASE_URL }
 
 export type AuthUser = {
   id: number
@@ -7,10 +9,21 @@ export type AuthUser = {
   created_at: string
 }
 
+export type LoginLocation = {
+  country: string | null
+  city: string | null
+  latitude: number | null
+  longitude: number | null
+  login_ip: string | null
+}
+
 export type AuthSuccess = {
   user: AuthUser
   token: string
+  location: LoginLocation | null
 }
+
+export const LOGIN_LOCATION_KEY = "loginLocation"
 
 function decodeJwtPayload(token: string): Record<string, unknown> | null {
   const parts = token.split(".")
@@ -41,7 +54,7 @@ export function isTokenUsable(token: string | null): boolean {
  * POST /sessions — OpenAPI `LoginRequest`: { email, password }.
  */
 export async function loginSession(email: string, password: string): Promise<AuthSuccess> {
-  const res = await fetch(`${API_BASE_URL}/sessions`, {
+  const res = await apiFetch(`${API_BASE_URL}/sessions`, {
     method: "POST",
     headers: {
       Accept: "application/json",
@@ -68,7 +81,7 @@ export async function registerUser(
   username: string,
   password: string,
 ): Promise<AuthSuccess> {
-  const res = await fetch(`${API_BASE_URL}/users`, {
+  const res = await apiFetch(`${API_BASE_URL}/users`, {
     method: "POST",
     headers: {
       Accept: "application/json",
@@ -101,7 +114,24 @@ function parseAuthSuccess(data: Record<string, unknown>): AuthSuccess {
   if (typeof token !== "string" || !user || typeof user !== "object") {
     throw new Error("Invalid response from server")
   }
-  return { token, user: user as AuthUser }
+  return { token, user: user as AuthUser, location: parseLoginLocation(data) }
+}
+
+function parseLoginLocation(data: Record<string, unknown>): LoginLocation | null {
+  const hasAny =
+    "country" in data || "city" in data || "latitude" in data || "longitude" in data || "login_ip" in data
+  if (!hasAny) return null
+
+  const num = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null)
+  const str = (v: unknown): string | null => (typeof v === "string" && v.length > 0 ? v : null)
+
+  return {
+    country: str(data.country),
+    city: str(data.city),
+    latitude: num(data.latitude),
+    longitude: num(data.longitude),
+    login_ip: str(data.login_ip),
+  }
 }
 
 export function readStoredUser(): AuthUser | null {
@@ -114,7 +144,18 @@ export function readStoredUser(): AuthUser | null {
   }
 }
 
+export function readStoredLoginLocation(): LoginLocation | null {
+  try {
+    const raw = localStorage.getItem(LOGIN_LOCATION_KEY)
+    if (!raw) return null
+    return JSON.parse(raw) as LoginLocation
+  } catch {
+    return null
+  }
+}
+
 export function clearStoredAuth(): void {
   localStorage.removeItem("token")
   localStorage.removeItem("user")
+  localStorage.removeItem(LOGIN_LOCATION_KEY)
 }

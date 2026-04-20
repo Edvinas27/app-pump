@@ -1,18 +1,21 @@
 <script setup>
 import { ref, computed, watch } from "vue"
 import axios from "axios"
+import { API_BASE_URL } from "../api/http"
 
 const emit = defineEmits(["active-car-change"])
 
 /* ---------------- API ---------------- */
 
-const api = axios.create({ baseURL: "http://127.0.0.1:3000" })
+const NGROK_HEADER = { "ngrok-skip-browser-warning": "true" }
+
+const api = axios.create({ baseURL: API_BASE_URL, headers: NGROK_HEADER })
 
 const getToken = () => localStorage.getItem("token")
 
 const authApi = () => axios.create({
-  baseURL: "http://127.0.0.1:3000",
-  headers: { Authorization: `Bearer ${getToken()}` }
+  baseURL: API_BASE_URL,
+  headers: { ...NGROK_HEADER, Authorization: `Bearer ${getToken()}` }
 })
 
 const fetchBrands       = ()                     => api.get("/cars/brands").then(r => r.data)
