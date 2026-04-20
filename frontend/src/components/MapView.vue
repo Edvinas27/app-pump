@@ -25,6 +25,10 @@ const routes = ref([
   { id: 3, name: "Route C", from: "", to: "", distance: null, duration: null, type: "Alternate", points: [], distanceKmRaw: null },
 ])
 
+const maxCo2Kg = ref(null)
+const hideExceeding = ref(false)
+const avoidLez = ref(false)
+
 const loading = ref(false)
 const error = ref(null)
 const clickedPoint = ref(null)
@@ -83,16 +87,20 @@ function getAuthToken() {
 
 async function fetchMapboxDirections(params) {
   const token = getAuthToken()
-  if (!token) {
-    throw new Error("AUTH_REQUIRED")
-  }
+  if (!token) throw new Error("AUTH_REQUIRED")
 
   const q = new URLSearchParams({
     start_lat: String(params.start_lat),
     start_lng: String(params.start_lng),
     end_lat: String(params.end_lat),
     end_lng: String(params.end_lng),
+
+    car_id: String(props.activeCarId),
+    max_co2_kg: maxCo2Kg.value ?? "",
+    avoid_lez: String(avoidLez.value),
+    hide_exceeding: String(hideExceeding.value),
   })
+
   if (params.via_lat != null && params.via_lng != null) {
     q.set("via_lat", String(params.via_lat))
     q.set("via_lng", String(params.via_lng))
@@ -101,14 +109,12 @@ async function fetchMapboxDirections(params) {
   const res = await fetch(`${API_BASE_URL}/directions?${q}`, {
     headers: { Authorization: `Bearer ${token}` },
   })
+
   const data = await res.json().catch(() => ({}))
   if (!res.ok) {
-    const msg = Array.isArray(data.errors) ? data.errors.join(", ") : (data.error || res.statusText)
-    throw new Error(msg || "Directions request failed")
+    throw new Error(data.error || "Directions failed")
   }
-  if (data.code !== "Ok" || !data.routes?.[0]) {
-    throw new Error("No route returned")
-  }
+
   return data
 }
 
@@ -160,15 +166,19 @@ async function fetchRoutes(endCoord) {
     endPlaceLabel.value = toLabel
 
     results.forEach((mapboxData, i) => {
-      const leg = mapboxData.routes[0]
-      const km = leg.distance_km != null ? Number(leg.distance_km) : null
-      routes.value[i].points = leg.geometry.coordinates.map(([lng, lat]) => [lat, lng])
-      routes.value[i].distance = formatDistanceKm(km)
-      routes.value[i].duration = `${Math.round(leg.duration / 60)} min`
-      routes.value[i].from = fromLabel
-      routes.value[i].to = toLabel
-      routes.value[i].distanceKmRaw = km != null && !Number.isNaN(km) ? km : null
-    })
+    const routeData = mapboxData.routes[0]
+
+    const km = routeData.distance_km != null ? Number(routeData.distance_km) : null
+
+    routes.value[i].points = routeData.geometry.coordinates.map(([lng, lat]) => [lat, lng])
+    routes.value[i].distance = formatDistanceKm(km)
+    routes.value[i].duration = `${Math.round(routeData.duration / 60)} min`
+    routes.value[i].distanceKmRaw = km
+
+    routes.value[i].co2Kg = routeData.co2_kg
+    routes.value[i].exceedsCo2 = routeData.exceeds_co2
+    routes.value[i].passesLez = routeData.passes_lez
+  })
 
     hasRoutes.value = true
     selectedRouteId.value = null
@@ -293,6 +303,15 @@ watch(
     }
   },
 )
+
+watch(
+  [maxCo2Kg, avoidLez, hideExceeding],
+  () => {
+    if (clickedPoint.value) {
+      fetchRoutes(clickedPoint.value)
+    }
+  }
+)
 </script>
 
 <template>
@@ -338,6 +357,25 @@ watch(
             </div>
           </div>
 
+          <div class="filter-box">
+            <p class="sidebar-label">Filters</p>
+
+            <label class="filter-item">
+              Max CO₂ (kg)
+              <input type="number" v-model="maxCo2Kg" placeholder="e.g. 5" />
+            </label>
+
+            <label class="filter-item">
+              <input type="checkbox" v-model="hideExceeding" />
+              Hide exceeding routes
+            </label>
+
+            <label class="filter-item">
+              <input type="checkbox" v-model="avoidLez" />
+              Avoid low emission zones
+            </label>
+          </div>
+          
           <p class="sidebar-label">Available Routes</p>
 
           <div v-if="!activeCarId" class="state-box car-hint">
@@ -377,11 +415,13 @@ watch(
           <template v-else>
             <div
               v-for="(route, idx) in routes"
+              v-if="!hideExceeding || !route.exceedsCo2"
               :key="route.id"
               class="route-card"
               :class="{
                 active: selectedRouteId === route.id,
                 disabled: !canSelectRoute(),
+                'route-bad': route.exceedsCo2 || route.passesLez
               }"
               :style="{ '--accent': routeColors.active[idx] }"
               @click="selectRoute(route)"
@@ -393,6 +433,10 @@ watch(
               <div class="route-card-stats">
                 <span>🛣 {{ route.distance ?? "—" }}</span>
                 <span>⏱ {{ route.duration ?? "—" }}</span>
+
+                <span v-if="route.co2Kg != null">
+                  🌱 {{ route.co2Kg.toFixed(2) }} kg
+                </span>
               </div>
             </div>
 
@@ -856,6 +900,24 @@ watch(
   width: 36px;
   height: 36px;
   border-width: 3.5px;
+}
+
+.filter-box {
+  background: #f8fafc;
+  padding: 10px;
+  border-radius: 10px;
+}
+
+.filter-item {
+  display: flex;
+  flex-direction: column;
+  font-size: 12px;
+  margin-bottom: 6px;
+}
+
+.route-bad {
+  border-color: #f59e0b;
+  background: #fffbeb;
 }
 
 .fade-enter-active,
