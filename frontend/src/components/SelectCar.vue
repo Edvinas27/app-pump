@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, watch } from "vue"
 import axios from "axios"
+import { fetchUserCars, assignUserCar, deleteUserCar } from "../api/userCars"
 import { API_BASE_URL, DEFAULT_HEADERS } from "../api/config"
 
 const emit = defineEmits(["active-car-change"])
@@ -12,16 +13,6 @@ const api = axios.create({
   headers: { ...DEFAULT_HEADERS },
 })
 
-const getToken = () => localStorage.getItem("token")
-
-const authApi = () => axios.create({
-  baseURL: API_BASE_URL,
-  headers: {
-    ...DEFAULT_HEADERS,
-    Authorization: `Bearer ${getToken()}`,
-  },
-})
-
 const fetchBrands       = ()                     => api.get("/cars/brands").then(r => r.data)
 const fetchModels       = (brand)                => api.get("/cars/models",     { params: { brand_name: brand } }).then(r => r.data)
 const fetchFuelTypes    = (brand, model)         => api.get("/cars/fuel_types", { params: { brand_name: brand, model } }).then(r => r.data)
@@ -29,9 +20,6 @@ const fetchYears        = (brand, model, fuelId) => api.get("/cars/years",      
 const findCar           = (brand, model, fuelId, year) => api.get("/cars", { params: { brand_name: brand, model, fuel_type_id: fuelId, year } }).then(r => r.data)
 const createCatalogCar  = (payload)              => api.post("/cars", payload).then(r => r.data)
 
-const fetchUserCars  = ()       => authApi().get("/me/cars").then(r => r.data)
-const assignUserCar  = (car_id) => authApi().post("/me/cars", { car_id }).then(r => r.data)
-const deleteUserCar  = (car_id) => authApi().delete(`/me/cars/${car_id}`).then(r => r.data)
 
 /* ---------------- STATE ---------------- */
 
@@ -104,6 +92,9 @@ async function loadUserCars() {
     if (!activeId.value && data.length) activeId.value = data[0].id
   } catch (e) {
     if (e.response?.status === 401) cars.value = []
+    else if (e.response?.status === 404) {
+      error.value = "Cars endpoint not found. API may be running on a different URL/port."
+    }
     else error.value = "Could not load cars."
   } finally {
     loading.value = false
@@ -306,9 +297,21 @@ async function saveCatalogCar() {
     else cars.value.push(saved)
     if (activeId.value === editTarget.value.id) activeId.value = saved.id
   } else {
-    const saved = await assignUserCar(targetId)
-    cars.value.push(saved)
-    if (!activeId.value) activeId.value = saved.id
+    try {
+      const saved = await assignUserCar(targetId)
+      cars.value.push(saved)
+      if (!activeId.value) activeId.value = saved.id
+    } catch (e) {
+      const fieldError = e.response?.data?.errors?.car_id
+      // If this car is already assigned to the user, sync list instead of failing.
+      if (e.response?.status === 422 && typeof fieldError === "string" && fieldError.includes("taken")) {
+        await loadUserCars()
+        const existing = cars.value.find(c => c.id === targetId)
+        if (existing && !activeId.value) activeId.value = existing.id
+        return
+      }
+      throw e
+    }
   }
 }
 
@@ -342,7 +345,13 @@ async function saveCustomCar() {
 /* ---------------- DELETE ---------------- */
 
 async function deleteCar(id) {
-  try { await deleteUserCar(id) } catch { /* best effort */ }
+  try {
+    await deleteUserCar(id)
+  } catch (e) {
+    const msg = e.response?.data?.error
+    error.value = typeof msg === "string" ? msg : "Could not remove car."
+    return
+  }
   cars.value = cars.value.filter(c => c.id !== id)
   if (activeId.value === id) activeId.value = cars.value[0]?.id || null
 }

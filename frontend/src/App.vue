@@ -191,7 +191,7 @@ body,
   position: absolute;
   bottom: 16px;
   right: 16px;
-  z-index: 1000;
+  z-index: 1100;
   width: 360px;
   max-width: calc(100vw - 32px);
   max-height: calc(100vh - 40px);
@@ -228,10 +228,11 @@ body,
   position: absolute;
   top: 16px;
   right: 16px;
+  bottom: 16px;
   z-index: 1000;
   width: 360px;
   max-width: calc(100vw - 32px);
-  max-height: calc(100vh - 32px);
+  height: calc(100vh - 32px);
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -273,9 +274,10 @@ body,
 }
 .panel-body {
   margin-top: 6px;
+  flex: 1;
+  min-height: 0;
   border-radius: 16px;
   overflow-y: auto;
-  max-height: calc(100vh - 90px);
   scrollbar-width: none;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
 }

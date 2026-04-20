@@ -1,5 +1,3 @@
-# frozen_string_literal: true
-
 class DirectionsController < BaseController
   before_action :require_current_user!
 
