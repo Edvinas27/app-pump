@@ -40,5 +40,9 @@ module AppPump
     # Middleware like session, flash, cookies can be added back manually.
     # Skip views, helpers and assets when generating a new resource.
     config.api_only = true
+
+    # Mapbox GeoIP / geocoding (see .env: MAPBOX_ACCESS_TOKEN, optional MAPBOX_GEOCODE_URL)
+    config.x.mapbox_access_token = ENV["MAPBOX_ACCESS_TOKEN"].presence
+    config.x.mapbox_geocode_url  = ENV.fetch("MAPBOX_GEOCODE_URL", "https://api.mapbox.com/search/geocode/v6")
   end
 end

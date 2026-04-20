@@ -9,12 +9,26 @@ const props = defineProps({
     type: Number,
     default: undefined,
   },
+  initialLocation: {
+    type: Object,
+    default: null,
+  },
 })
+
+const VILNIUS = [54.6872, 25.2797]
+
+function resolveInitialCenter() {
+  const loc = props.initialLocation
+  if (loc && typeof loc.latitude === "number" && typeof loc.longitude === "number") {
+    return [loc.latitude, loc.longitude]
+  }
+  return VILNIUS
+}
 
 const mapRef = ref(null)
 const zoom = ref(12)
-const center = ref([54.6872, 25.2797])
-const startCoord = ref([54.6872, 25.2797])
+const center = ref(resolveInitialCenter())
+const startCoord = ref(resolveInitialCenter())
 
 /** Next map click sets start or destination */
 const mapTarget = ref("end")
